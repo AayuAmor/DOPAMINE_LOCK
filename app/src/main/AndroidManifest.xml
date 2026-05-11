@@ -12,6 +12,17 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.DOPAMINE_LOCK">
         <activity
+            android:name=".ForgotPasswordActivity"
+            android:exported="true"
+            android:label="@string/title_activity_forgot_password"
+            android:theme="@style/Theme.DOPAMINE_LOCK">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity
             android:name=".RegisterActivity"
             android:exported="true"
             android:label="@string/title_activity_register"
