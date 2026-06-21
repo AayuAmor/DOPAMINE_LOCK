@@ -69,7 +69,8 @@ private val recentSessions = listOf(
 @Composable
 fun DashboardScreen(
     currentRoute: String = Screen.Dashboard.route,
-    onNavigate: (String) -> Unit
+    onNavigate: (String) -> Unit,
+    onStartFocus: () -> Unit = { onNavigate(Screen.Focus.route) }
 ) {
     Scaffold(
         containerColor = Color.Black,
@@ -145,7 +146,7 @@ fun DashboardScreen(
                 ) {
                     DopamineButton(
                         text = "Start Focus",
-                        onClick = { onNavigate(Screen.Focus.route) },
+                        onClick = onStartFocus,
                         variant = ButtonVariant.Primary,
                         leadingIcon = Icons.Filled.PlayArrow,
                         modifier = Modifier.weight(1f)

@@ -14,6 +14,7 @@ import com.teamdobermans.dopamine_lock.ui.blockedapps.BlockedAppsScreen
 import com.teamdobermans.dopamine_lock.ui.dashboard.DashboardScreen
 import com.teamdobermans.dopamine_lock.ui.focus.FocusTimerScreen
 import com.teamdobermans.dopamine_lock.ui.focus.MissionModeScreen
+import com.teamdobermans.dopamine_lock.ui.mission.CreateMissionScreen
 import com.teamdobermans.dopamine_lock.ui.onboarding.OnboardingScreen
 import com.teamdobermans.dopamine_lock.ui.settings.SettingsScreen
 import com.teamdobermans.dopamine_lock.ui.splash.SplashScreen
@@ -113,7 +114,27 @@ fun AppNavigation() {
         composable(Screen.Dashboard.route) {
             DashboardScreen(
                 currentRoute = currentRoute,
-                onNavigate = ::navigateBottomNav
+                onNavigate = ::navigateBottomNav,
+                onStartFocus = {
+                    navController.navigate(Screen.CreateMission.route)
+                }
+            )
+        }
+
+        composable(Screen.CreateMission.route) {
+            CreateMissionScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onManageApps = {
+                    navController.navigate(Screen.BlockedApps.route)
+                },
+                onStartMission = {
+                    navController.navigate(Screen.Focus.route)
+                },
+                onCancel = {
+                    navController.popBackStack()
+                }
             )
         }
 
