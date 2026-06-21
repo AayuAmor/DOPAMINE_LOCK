@@ -1,6 +1,8 @@
-package com.teamdobermans.dopamine_lock
+package com.teamdobermans.dopamine_lock.ui.auth
 
 import android.app.Activity
+import com.teamdobermans.dopamine_lock.R
+import com.teamdobermans.dopamine_lock.ui.dashboard.DashboardActivity
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle

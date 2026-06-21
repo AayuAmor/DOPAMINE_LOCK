@@ -1,4 +1,4 @@
-package com.teamdobermans.dopamine_lock
+package com.teamdobermans.dopamine_lock.ui.onboarding
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity

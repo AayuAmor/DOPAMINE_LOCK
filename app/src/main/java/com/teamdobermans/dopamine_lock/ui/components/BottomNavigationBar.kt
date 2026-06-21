@@ -1,0 +1,89 @@
+package com.teamdobermans.dopamine_lock.ui.components
+
+import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Analytics
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.outlined.Analytics
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.teamdobermans.dopamine_lock.navigation.Screen
+import com.teamdobermans.dopamine_lock.ui.theme.DopamineBorder
+import com.teamdobermans.dopamine_lock.ui.theme.DopamineGrey
+import com.teamdobermans.dopamine_lock.ui.theme.DopamineSurface
+import com.teamdobermans.dopamine_lock.ui.theme.DopamineWhite
+
+data class BottomNavItem(
+    val route: String,
+    val label: String,
+    val selectedIcon: ImageVector,
+    val unselectedIcon: ImageVector
+)
+
+private val bottomNavItems = listOf(
+    BottomNavItem(Screen.Dashboard.route, "Home", Icons.Filled.Home, Icons.Outlined.Home),
+    BottomNavItem(Screen.Focus.route, "Focus", Icons.Filled.Timer, Icons.Outlined.Timer),
+    BottomNavItem(Screen.Tasks.route, "Tasks", Icons.Filled.CheckCircle, Icons.Outlined.CheckCircle),
+    BottomNavItem(Screen.Analytics.route, "Stats", Icons.Filled.Analytics, Icons.Outlined.Analytics),
+    BottomNavItem(Screen.Settings.route, "Settings", Icons.Filled.Settings, Icons.Outlined.Settings)
+)
+
+@Composable
+fun BottomNavigationBar(
+    currentRoute: String,
+    onNavigate: (String) -> Unit
+) {
+    HorizontalDivider(color = DopamineBorder, thickness = 1.dp)
+    NavigationBar(
+        containerColor = DopamineSurface,
+        tonalElevation = 0.dp,
+        modifier = Modifier.height(64.dp)
+    ) {
+        bottomNavItems.forEach { item ->
+            val selected = currentRoute == item.route
+            NavigationBarItem(
+                selected = selected,
+                onClick = { onNavigate(item.route) },
+                icon = {
+                    Icon(
+                        imageVector = if (selected) item.selectedIcon else item.unselectedIcon,
+                        contentDescription = item.label
+                    )
+                },
+                label = {
+                    Text(
+                        text = item.label,
+                        fontSize = 10.sp,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                        letterSpacing = 0.5.sp
+                    )
+                },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = DopamineWhite,
+                    selectedTextColor = DopamineWhite,
+                    unselectedIconColor = DopamineGrey,
+                    unselectedTextColor = DopamineGrey,
+                    indicatorColor = Color.Transparent
+                )
+            )
+        }
+    }
+}

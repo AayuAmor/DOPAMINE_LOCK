@@ -1,6 +1,7 @@
-package com.teamdobermans.dopamine_lock
+package com.teamdobermans.dopamine_lock.ui.splash
 
 import android.os.Bundle
+import com.teamdobermans.dopamine_lock.R
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
