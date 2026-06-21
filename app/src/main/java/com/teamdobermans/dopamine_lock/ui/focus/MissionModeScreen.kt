@@ -42,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.teamdobermans.dopamine_lock.domain.model.FocusSession
+import com.teamdobermans.dopamine_lock.domain.model.Mission
 import com.teamdobermans.dopamine_lock.ui.components.ButtonVariant
 import com.teamdobermans.dopamine_lock.ui.components.DopamineButton
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineBorder
@@ -65,6 +66,7 @@ private val missionRules = listOf(
 @Composable
 fun MissionModeScreen(
     activeSession: FocusSession?,
+    activeMission: Mission? = null,
     onAbandonMission: (sessionId: String, elapsedSeconds: Long) -> Unit
 ) {
     var elapsedSeconds by remember { mutableIntStateOf(0) }
@@ -79,6 +81,15 @@ fun MissionModeScreen(
     val hours = elapsedSeconds / 3600
     val minutes = (elapsedSeconds % 3600) / 60
     val seconds = elapsedSeconds % 60
+    val missionTitle = activeMission?.title?.ifBlank { null }
+        ?: activeSession?.missionName?.ifBlank { null }
+        ?: "MISSION MODE"
+    val missionGoal = activeMission?.goal?.ifBlank { null }
+        ?: activeSession?.missionGoal?.ifBlank { null }
+        ?: "Maximum focus. Zero distractions."
+    val durationMinutes = activeMission?.durationMinutes ?: activeSession?.durationMinutes ?: 25
+    val blockedAppsCount = activeMission?.blockedApps?.size ?: activeSession?.blockedApps?.size ?: 0
+    val statusLabel = activeMission?.status?.name ?: "ACTIVE"
 
     LazyColumn(
         modifier = Modifier
@@ -126,7 +137,7 @@ fun MissionModeScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
-                text = activeSession?.missionName?.uppercase()?.ifBlank { "MISSION MODE" } ?: "MISSION MODE",
+                text = missionTitle.uppercase(),
                 style = MaterialTheme.typography.headlineMedium,
                 color = DopamineWhite,
                 fontWeight = FontWeight.Bold,
@@ -136,7 +147,7 @@ fun MissionModeScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = activeSession?.missionGoal?.takeIf { it.isNotBlank() } ?: "Maximum focus. Zero distractions.",
+                text = missionGoal,
                 style = MaterialTheme.typography.bodyMedium,
                 color = DopamineGrey
             )
@@ -168,6 +179,14 @@ fun MissionModeScreen(
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            MissionInfoCard(
+                durationMinutes = durationMinutes,
+                blockedAppsCount = blockedAppsCount,
+                status = statusLabel
+            )
 
             Spacer(modifier = Modifier.height(32.dp))
 
@@ -234,6 +253,65 @@ fun MissionModeScreen(
 
             Spacer(modifier = Modifier.height(40.dp))
         }
+    }
+}
+
+@Composable
+private fun MissionInfoCard(
+    durationMinutes: Int,
+    blockedAppsCount: Int,
+    status: String
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(color = DopamineSurface, shape = RoundedCornerShape(12.dp))
+            .border(1.dp, DopamineBorder, RoundedCornerShape(12.dp))
+            .padding(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        MissionInfoItem(
+            label = "DURATION",
+            value = "$durationMinutes min",
+            modifier = Modifier.weight(1f)
+        )
+        MissionInfoItem(
+            label = "BLOCKED",
+            value = blockedAppsCount.toString(),
+            modifier = Modifier.weight(1f)
+        )
+        MissionInfoItem(
+            label = "STATUS",
+            value = status,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun MissionInfoItem(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = DopamineGrey,
+            letterSpacing = 1.5.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodySmall,
+            color = DopamineWhite,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 

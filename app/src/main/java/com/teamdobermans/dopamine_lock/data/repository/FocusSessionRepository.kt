@@ -14,12 +14,14 @@ interface FocusSessionRepository {
 
     suspend fun completeSession(
         sessionId: String,
-        elapsedSeconds: Long
+        elapsedSeconds: Long,
+        applyDisciplineScore: Boolean = true
     ): Result<FocusSession>
 
     suspend fun abandonSession(
         sessionId: String,
-        elapsedSeconds: Long
+        elapsedSeconds: Long,
+        applyDisciplineScore: Boolean = true
     ): Result<FocusSession>
 
     suspend fun getSessionById(sessionId: String): Result<FocusSession>

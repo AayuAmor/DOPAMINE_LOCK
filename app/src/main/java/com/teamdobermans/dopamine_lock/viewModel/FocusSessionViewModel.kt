@@ -62,10 +62,14 @@ class FocusSessionViewModel(
         }
     }
 
-    fun completeSession(sessionId: String, elapsedSeconds: Long) {
+    fun completeSession(
+        sessionId: String,
+        elapsedSeconds: Long,
+        applyDisciplineScore: Boolean = true
+    ) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null, successMessage = null) }
-            repository.completeSession(sessionId, elapsedSeconds)
+            repository.completeSession(sessionId, elapsedSeconds, applyDisciplineScore)
                 .onSuccess { session ->
                     _uiState.update {
                         it.copy(isLoading = false, activeSession = null, successMessage = "Session completed.")
@@ -80,10 +84,14 @@ class FocusSessionViewModel(
         }
     }
 
-    fun abandonSession(sessionId: String, elapsedSeconds: Long) {
+    fun abandonSession(
+        sessionId: String,
+        elapsedSeconds: Long,
+        applyDisciplineScore: Boolean = true
+    ) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null, successMessage = null) }
-            repository.abandonSession(sessionId, elapsedSeconds)
+            repository.abandonSession(sessionId, elapsedSeconds, applyDisciplineScore)
                 .onSuccess {
                     _uiState.update {
                         it.copy(isLoading = false, activeSession = null, successMessage = "Session ended.")

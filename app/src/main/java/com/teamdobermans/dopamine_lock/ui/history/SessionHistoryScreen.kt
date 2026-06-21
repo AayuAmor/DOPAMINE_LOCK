@@ -38,6 +38,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.teamdobermans.dopamine_lock.domain.model.FocusSession
+import com.teamdobermans.dopamine_lock.domain.model.Mission
+import com.teamdobermans.dopamine_lock.domain.model.MissionStatus
 import com.teamdobermans.dopamine_lock.navigation.Screen
 import com.teamdobermans.dopamine_lock.ui.components.BottomNavigationBar
 import com.teamdobermans.dopamine_lock.ui.components.DopamineTextField
@@ -51,7 +53,7 @@ import com.teamdobermans.dopamine_lock.ui.theme.DopamineGrey
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineSurface
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineWhite
 
-private enum class SessionStatus { Completed, Failed }
+private enum class SessionStatus { Completed, Active, Abandoned, Failed }
 
 private data class HistorySession(
     val id: String,
@@ -60,6 +62,7 @@ private data class HistorySession(
     val status: SessionStatus,
     val duration: String,
     val timeRange: String,
+    val missionType: String,
     val appsBlocked: Int,
     val goal: String,
     val disciplineXp: Int,
@@ -76,6 +79,7 @@ private val mockSessions = listOf(
         status = SessionStatus.Completed,
         duration = "90 min",
         timeRange = "09:00 - 10:30",
+        missionType = "Deep Work",
         appsBlocked = 3,
         goal = "Finish DSA Notes",
         disciplineXp = 25,
@@ -88,6 +92,7 @@ private val mockSessions = listOf(
         status = SessionStatus.Failed,
         duration = "25 min",
         timeRange = "13:10 - 13:35",
+        missionType = "Study",
         appsBlocked = 4,
         goal = "Complete component cleanup",
         disciplineXp = -10,
@@ -100,6 +105,7 @@ private val mockSessions = listOf(
         status = SessionStatus.Completed,
         duration = "45 min",
         timeRange = "20:00 - 20:45",
+        missionType = "Reading",
         appsBlocked = 2,
         goal = "Read product design chapter",
         disciplineXp = 25,
@@ -112,6 +118,7 @@ private val mockSessions = listOf(
         status = SessionStatus.Completed,
         duration = "120 min",
         timeRange = "07:30 - 09:30",
+        missionType = "Coding",
         appsBlocked = 5,
         goal = "Implement mission planning UI",
         disciplineXp = 25,
@@ -123,6 +130,7 @@ private val mockSessions = listOf(
 fun SessionHistoryScreen(
     currentRoute: String = Screen.Dashboard.route,
     sessions: List<FocusSession> = emptyList(),
+    missions: List<Mission> = emptyList(),
     totalFocusHours: Double = 0.0,
     completedSessions: Int = 0,
     successRate: Int = 0,
@@ -131,8 +139,12 @@ fun SessionHistoryScreen(
     var selectedFilter by remember { mutableStateOf("All") }
     var searchQuery by remember { mutableStateOf("") }
 
-    val visibleSessions = remember(selectedFilter, searchQuery, sessions) {
-        val historySessions = if (sessions.isEmpty()) mockSessions else sessions.map { it.toHistorySession() }
+    val visibleSessions = remember(selectedFilter, searchQuery, sessions, missions) {
+        val historySessions = when {
+            missions.isNotEmpty() -> missions.map { it.toHistorySession() }
+            sessions.isNotEmpty() -> sessions.map { it.toHistorySession() }
+            else -> mockSessions
+        }
         filterSessions(
             sessions = historySessions,
             selectedFilter = selectedFilter,
@@ -162,7 +174,11 @@ fun SessionHistoryScreen(
             item {
                 SessionHistorySummary(
                     totalFocusHours = if (sessions.isEmpty()) 29.2 else totalFocusHours,
-                    sessionCount = if (sessions.isEmpty()) 38 else sessions.size,
+                    sessionCount = when {
+                        missions.isNotEmpty() -> missions.size
+                        sessions.isNotEmpty() -> sessions.size
+                        else -> 38
+                    },
                     successRate = if (sessions.isEmpty()) 87 else successRate
                 )
             }
@@ -247,10 +263,43 @@ private fun FocusSession.toHistorySession(): HistorySession {
         status = if (completed) SessionStatus.Completed else SessionStatus.Failed,
         duration = "$minutes min",
         timeRange = if (startedAt > 0L && endedAt > 0L) "Saved mission" else "In progress",
+        missionType = missionType.ifBlank { "Focus" },
         appsBlocked = blockedApps.size,
         goal = missionGoal.ifBlank { "No goal recorded" },
         disciplineXp = disciplineXp,
         completion = if (completed) 1f else 0.42f
+    )
+}
+
+private fun Mission.toHistorySession(): HistorySession {
+    val endedAt = completedAt.takeIf { it > 0L } ?: startedAt
+    val status = when (status) {
+        MissionStatus.COMPLETED -> SessionStatus.Completed
+        MissionStatus.ACTIVE -> SessionStatus.Active
+        MissionStatus.ABANDONED -> SessionStatus.Abandoned
+        MissionStatus.FAILED -> SessionStatus.Failed
+        MissionStatus.CREATED -> SessionStatus.Active
+    }
+    val completion = when (this.status) {
+        MissionStatus.COMPLETED -> 1f
+        MissionStatus.ACTIVE -> 0.5f
+        MissionStatus.CREATED -> 0.15f
+        MissionStatus.ABANDONED,
+        MissionStatus.FAILED -> 0.42f
+    }
+
+    return HistorySession(
+        id = missionId,
+        dateLabel = dateLabel(startedAt.takeIf { it > 0L } ?: createdAt),
+        title = title.ifBlank { missionType.ifBlank { "Mission" } },
+        status = status,
+        duration = "$durationMinutes min",
+        timeRange = if (endedAt > 0L) "Mission status: ${this.status.name}" else "Created mission",
+        missionType = missionType.ifBlank { "Focus" },
+        appsBlocked = blockedApps.size,
+        goal = goal.ifBlank { "No goal recorded" },
+        disciplineXp = disciplineReward - disciplinePenalty,
+        completion = completion
     )
 }
 
@@ -364,7 +413,7 @@ private fun SessionHistoryCard(session: HistorySession) {
 
         Spacer(modifier = Modifier.height(14.dp))
         Text(
-            text = "${session.appsBlocked} apps blocked",
+            text = "${session.appsBlocked} apps blocked • ${session.missionType.uppercase()} • ${session.status.name.uppercase()}",
             style = MaterialTheme.typography.bodySmall,
             color = DopamineGrey
         )
@@ -487,7 +536,7 @@ private fun FilterChip(
 
 @Composable
 private fun SessionStatusBadge(status: SessionStatus) {
-    val failed = status == SessionStatus.Failed
+    val failed = status == SessionStatus.Failed || status == SessionStatus.Abandoned
     Box(
         modifier = Modifier
             .background(
@@ -541,7 +590,7 @@ private fun filterSessions(
 ): List<HistorySession> {
     val byFilter = when (selectedFilter) {
         "Completed" -> sessions.filter { it.status == SessionStatus.Completed }
-        "Failed" -> sessions.filter { it.status == SessionStatus.Failed }
+        "Failed" -> sessions.filter { it.status == SessionStatus.Failed || it.status == SessionStatus.Abandoned }
         "This Week" -> sessions
         "This Month" -> sessions
         else -> sessions

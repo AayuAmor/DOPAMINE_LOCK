@@ -50,7 +50,11 @@ class FocusSessionRepositoryImpl(
         session
     }
 
-    override suspend fun completeSession(sessionId: String, elapsedSeconds: Long): Result<FocusSession> = runCatchingSession {
+    override suspend fun completeSession(
+        sessionId: String,
+        elapsedSeconds: Long,
+        applyDisciplineScore: Boolean
+    ): Result<FocusSession> = runCatchingSession {
         val uid = currentUid()
         val existing = fetchSession(uid, sessionId)
         val now = System.currentTimeMillis()
@@ -64,11 +68,15 @@ class FocusSessionRepositoryImpl(
             updatedAt = now
         )
         sessionRef(uid, sessionId).setValue(updated).await()
-        updateUserStats(elapsedSeconds, xp)
+        updateUserStats(elapsedSeconds, xp, applyDisciplineScore)
         updated
     }
 
-    override suspend fun abandonSession(sessionId: String, elapsedSeconds: Long): Result<FocusSession> = runCatchingSession {
+    override suspend fun abandonSession(
+        sessionId: String,
+        elapsedSeconds: Long,
+        applyDisciplineScore: Boolean
+    ): Result<FocusSession> = runCatchingSession {
         val uid = currentUid()
         val existing = fetchSession(uid, sessionId)
         val now = System.currentTimeMillis()
@@ -81,7 +89,7 @@ class FocusSessionRepositoryImpl(
             updatedAt = now
         )
         sessionRef(uid, sessionId).setValue(updated).await()
-        updateUserStats(elapsedSeconds = 0L, xp = -15)
+        updateUserStats(elapsedSeconds = 0L, xp = -15, applyDisciplineScore = applyDisciplineScore)
         updated
     }
 
@@ -150,7 +158,11 @@ class FocusSessionRepositoryImpl(
         sessionRef(currentUid(), sessionId).removeValue().await()
     }
 
-    private suspend fun updateUserStats(elapsedSeconds: Long, xp: Int) {
+    private suspend fun updateUserStats(
+        elapsedSeconds: Long,
+        xp: Int,
+        applyDisciplineScore: Boolean
+    ) {
         userRepository.getCurrentUserProfile().onSuccess { user ->
             if (elapsedSeconds > 0L) {
                 userRepository.updateTotalFocusHours(
@@ -158,10 +170,12 @@ class FocusSessionRepositoryImpl(
                     totalFocusHours = user.totalFocusHours + elapsedSeconds / 3600.0
                 )
             }
-            userRepository.updateDisciplineScore(
-                uid = user.uid,
-                score = (user.disciplineScore + xp).coerceAtLeast(0)
-            )
+            if (applyDisciplineScore) {
+                userRepository.updateDisciplineScore(
+                    uid = user.uid,
+                    score = (user.disciplineScore + xp).coerceAtLeast(0)
+                )
+            }
         }
     }
 

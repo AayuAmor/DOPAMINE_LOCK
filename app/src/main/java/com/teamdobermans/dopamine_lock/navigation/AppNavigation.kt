@@ -22,6 +22,7 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.teamdobermans.dopamine_lock.BuildConfig
 import com.teamdobermans.dopamine_lock.data.repositoryImpl.AuthRepositoryImpl
 import com.teamdobermans.dopamine_lock.data.repositoryImpl.FocusSessionRepositoryImpl
+import com.teamdobermans.dopamine_lock.data.repositoryImpl.MissionRepositoryImpl
 import com.teamdobermans.dopamine_lock.data.repositoryImpl.UserRepositoryImpl
 import com.teamdobermans.dopamine_lock.firebase.FirebaseProvider
 import com.teamdobermans.dopamine_lock.ui.analytics.AnalyticsScreen
@@ -48,6 +49,8 @@ import com.teamdobermans.dopamine_lock.viewModel.AuthViewModelFactory
 import com.teamdobermans.dopamine_lock.ui.auth.AuthProvider
 import com.teamdobermans.dopamine_lock.viewModel.FocusSessionViewModel
 import com.teamdobermans.dopamine_lock.viewModel.FocusSessionViewModelFactory
+import com.teamdobermans.dopamine_lock.viewModel.MissionViewModel
+import com.teamdobermans.dopamine_lock.viewModel.MissionViewModelFactory
 import com.teamdobermans.dopamine_lock.viewModel.UserViewModel
 import com.teamdobermans.dopamine_lock.viewModel.UserViewModelFactory
 import kotlinx.coroutines.launch
@@ -86,9 +89,19 @@ fun AppNavigation() {
             )
         )
     )
+    val missionViewModel: MissionViewModel = viewModel(
+        factory = MissionViewModelFactory(
+            MissionRepositoryImpl(
+                auth = FirebaseProvider.auth,
+                database = FirebaseProvider.database,
+                userRepository = userRepository
+            )
+        )
+    )
     val authUiState by authViewModel.uiState.collectAsState()
     val userUiState by userViewModel.uiState.collectAsState()
     val focusSessionUiState by focusSessionViewModel.uiState.collectAsState()
+    val missionUiState by missionViewModel.uiState.collectAsState()
     val currentBackStackEntry = navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry.value?.destination?.route ?: Screen.Splash.route
 
@@ -133,9 +146,12 @@ fun AppNavigation() {
             userViewModel.observeCurrentUserProfile()
             focusSessionViewModel.observeSessions()
             focusSessionViewModel.observeActiveSession()
+            missionViewModel.observeMissions()
+            missionViewModel.observeActiveMission()
         } else {
             userViewModel.clearUser()
             focusSessionViewModel.clear()
+            missionViewModel.clear()
         }
     }
 
@@ -309,14 +325,28 @@ fun AppNavigation() {
                     missionType,
                     durationMinutes,
                     blockedApps ->
-                    focusSessionViewModel.startSession(
-                        missionName = missionName,
-                        missionGoal = missionGoal,
+                    missionViewModel.createMission(
+                        title = missionName,
+                        goal = missionGoal,
                         missionType = missionType,
                         durationMinutes = durationMinutes,
                         blockedApps = blockedApps,
-                        onSuccess = {
-                            navController.navigate(Screen.Focus.route)
+                        onSuccess = { mission ->
+                            missionViewModel.startMission(
+                                missionId = mission.missionId,
+                                onSuccess = {
+                                    focusSessionViewModel.startSession(
+                                        missionName = missionName,
+                                        missionGoal = missionGoal,
+                                        missionType = missionType,
+                                        durationMinutes = durationMinutes,
+                                        blockedApps = blockedApps,
+                                        onSuccess = {
+                                            navController.navigate(Screen.Mission.route)
+                                        }
+                                    )
+                                }
+                            )
                         }
                     )
                 },
@@ -335,16 +365,45 @@ fun AppNavigation() {
                 onNavigateToMission = {
                     navController.navigate(Screen.Mission.route)
                 },
-                onCompleteSession = focusSessionViewModel::completeSession,
-                onAbandonSession = focusSessionViewModel::abandonSession
+                onCompleteSession = { sessionId, elapsedSeconds ->
+                    val hasMissionReward = missionUiState.activeMission?.missionId?.isNotBlank() == true
+                    focusSessionViewModel.completeSession(
+                        sessionId = sessionId,
+                        elapsedSeconds = elapsedSeconds,
+                        applyDisciplineScore = !hasMissionReward
+                    )
+                    missionUiState.activeMission?.missionId?.takeIf { it.isNotBlank() }?.let {
+                        missionViewModel.completeMission(it)
+                    }
+                },
+                onAbandonSession = { sessionId, elapsedSeconds ->
+                    val hasMissionPenalty = missionUiState.activeMission?.missionId?.isNotBlank() == true
+                    focusSessionViewModel.abandonSession(
+                        sessionId = sessionId,
+                        elapsedSeconds = elapsedSeconds,
+                        applyDisciplineScore = !hasMissionPenalty
+                    )
+                    missionUiState.activeMission?.missionId?.takeIf { it.isNotBlank() }?.let {
+                        missionViewModel.abandonMission(it)
+                    }
+                }
             )
         }
 
         composable(Screen.Mission.route) {
             MissionModeScreen(
                 activeSession = focusSessionUiState.activeSession,
+                activeMission = missionUiState.activeMission,
                 onAbandonMission = { sessionId, elapsedSeconds ->
-                    focusSessionViewModel.abandonSession(sessionId, elapsedSeconds)
+                    val hasMissionPenalty = missionUiState.activeMission?.missionId?.isNotBlank() == true
+                    focusSessionViewModel.abandonSession(
+                        sessionId = sessionId,
+                        elapsedSeconds = elapsedSeconds,
+                        applyDisciplineScore = !hasMissionPenalty
+                    )
+                    missionUiState.activeMission?.missionId?.takeIf { it.isNotBlank() }?.let { missionId ->
+                        missionViewModel.abandonMission(missionId)
+                    }
                     navController.navigate(Screen.Dashboard.route) {
                         popUpTo(Screen.Dashboard.route) { inclusive = false }
                     }
@@ -406,6 +465,7 @@ fun AppNavigation() {
             SessionHistoryScreen(
                 currentRoute = Screen.Dashboard.route,
                 sessions = focusSessionUiState.sessions,
+                missions = missionUiState.missions,
                 totalFocusHours = focusSessionUiState.totalFocusHours,
                 completedSessions = focusSessionUiState.completedSessions,
                 successRate = focusSessionUiState.successRate,
