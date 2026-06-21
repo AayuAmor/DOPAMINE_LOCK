@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.teamdobermans.dopamine_lock.domain.model.FocusSession
 import com.teamdobermans.dopamine_lock.ui.components.ButtonVariant
 import com.teamdobermans.dopamine_lock.ui.components.DopamineButton
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineBorder
@@ -63,7 +64,8 @@ private val missionRules = listOf(
 
 @Composable
 fun MissionModeScreen(
-    onAbandonMission: () -> Unit
+    activeSession: FocusSession?,
+    onAbandonMission: (sessionId: String, elapsedSeconds: Long) -> Unit
 ) {
     var elapsedSeconds by remember { mutableIntStateOf(0) }
 
@@ -124,7 +126,7 @@ fun MissionModeScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
-                text = "MISSION MODE",
+                text = activeSession?.missionName?.uppercase()?.ifBlank { "MISSION MODE" } ?: "MISSION MODE",
                 style = MaterialTheme.typography.headlineMedium,
                 color = DopamineWhite,
                 fontWeight = FontWeight.Bold,
@@ -134,7 +136,7 @@ fun MissionModeScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Maximum focus. Zero distractions.",
+                text = activeSession?.missionGoal?.takeIf { it.isNotBlank() } ?: "Maximum focus. Zero distractions.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = DopamineGrey
             )
@@ -222,7 +224,11 @@ fun MissionModeScreen(
 
             DopamineButton(
                 text = "Abandon Mission",
-                onClick = onAbandonMission,
+                onClick = {
+                    activeSession?.sessionId?.takeIf { it.isNotBlank() }?.let {
+                        onAbandonMission(it, elapsedSeconds.toLong())
+                    }
+                },
                 variant = ButtonVariant.Danger
             )
 

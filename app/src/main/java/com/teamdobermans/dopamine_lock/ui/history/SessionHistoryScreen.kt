@@ -37,6 +37,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.teamdobermans.dopamine_lock.domain.model.FocusSession
 import com.teamdobermans.dopamine_lock.navigation.Screen
 import com.teamdobermans.dopamine_lock.ui.components.BottomNavigationBar
 import com.teamdobermans.dopamine_lock.ui.components.DopamineTextField
@@ -121,14 +122,19 @@ private val mockSessions = listOf(
 @Composable
 fun SessionHistoryScreen(
     currentRoute: String = Screen.Dashboard.route,
+    sessions: List<FocusSession> = emptyList(),
+    totalFocusHours: Double = 0.0,
+    completedSessions: Int = 0,
+    successRate: Int = 0,
     onNavigate: (String) -> Unit
 ) {
     var selectedFilter by remember { mutableStateOf("All") }
     var searchQuery by remember { mutableStateOf("") }
 
-    val visibleSessions = remember(selectedFilter, searchQuery) {
+    val visibleSessions = remember(selectedFilter, searchQuery, sessions) {
+        val historySessions = if (sessions.isEmpty()) mockSessions else sessions.map { it.toHistorySession() }
         filterSessions(
-            sessions = mockSessions,
+            sessions = historySessions,
             selectedFilter = selectedFilter,
             query = searchQuery
         )
@@ -153,7 +159,13 @@ fun SessionHistoryScreen(
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             item { SessionHistoryHeader() }
-            item { SessionHistorySummary() }
+            item {
+                SessionHistorySummary(
+                    totalFocusHours = if (sessions.isEmpty()) 29.2 else totalFocusHours,
+                    sessionCount = if (sessions.isEmpty()) 38 else sessions.size,
+                    successRate = if (sessions.isEmpty()) 87 else successRate
+                )
+            }
             item {
                 SessionHistoryFilters(
                     selectedFilter = selectedFilter,
@@ -211,15 +223,56 @@ private fun SessionHistoryHeader() {
 }
 
 @Composable
-private fun SessionHistorySummary() {
+private fun SessionHistorySummary(
+    totalFocusHours: Double,
+    sessionCount: Int,
+    successRate: Int
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        SummaryCard(value = "29.2h", label = "Total Focus", modifier = Modifier.weight(1f))
-        SummaryCard(value = "38", label = "Sessions", modifier = Modifier.weight(1f))
-        SummaryCard(value = "87%", label = "Success Rate", modifier = Modifier.weight(1f))
+        SummaryCard(value = "${formatHours(totalFocusHours)}h", label = "Total Focus", modifier = Modifier.weight(1f))
+        SummaryCard(value = sessionCount.toString(), label = "Sessions", modifier = Modifier.weight(1f))
+        SummaryCard(value = "$successRate%", label = "Success Rate", modifier = Modifier.weight(1f))
     }
+}
+
+private fun FocusSession.toHistorySession(): HistorySession {
+    val minutes = (elapsedSeconds / 60L).coerceAtLeast(0)
+    return HistorySession(
+        id = sessionId,
+        dateLabel = dateLabel(startedAt),
+        title = missionName.ifBlank { missionType.ifBlank { "Focus Session" } },
+        status = if (completed) SessionStatus.Completed else SessionStatus.Failed,
+        duration = "$minutes min",
+        timeRange = if (startedAt > 0L && endedAt > 0L) "Saved mission" else "In progress",
+        appsBlocked = blockedApps.size,
+        goal = missionGoal.ifBlank { "No goal recorded" },
+        disciplineXp = disciplineXp,
+        completion = if (completed) 1f else 0.42f
+    )
+}
+
+private fun dateLabel(timestamp: Long): String {
+    if (timestamp <= 0L) return "UNKNOWN"
+    val now = java.util.Calendar.getInstance()
+    val date = java.util.Calendar.getInstance().apply { timeInMillis = timestamp }
+    val yesterday = java.util.Calendar.getInstance().apply { add(java.util.Calendar.DAY_OF_YEAR, -1) }
+    return when {
+        sameDay(now, date) -> "TODAY"
+        sameDay(yesterday, date) -> "YESTERDAY"
+        else -> java.text.SimpleDateFormat("MMMM d", java.util.Locale.US).format(java.util.Date(timestamp)).uppercase()
+    }
+}
+
+private fun sameDay(first: java.util.Calendar, second: java.util.Calendar): Boolean {
+    return first.get(java.util.Calendar.YEAR) == second.get(java.util.Calendar.YEAR) &&
+        first.get(java.util.Calendar.DAY_OF_YEAR) == second.get(java.util.Calendar.DAY_OF_YEAR)
+}
+
+private fun formatHours(hours: Double): String {
+    return if (hours % 1.0 == 0.0) hours.toInt().toString() else "%.1f".format(hours)
 }
 
 @Composable

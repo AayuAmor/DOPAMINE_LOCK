@@ -69,7 +69,13 @@ private val missionRules = listOf(
 fun CreateMissionScreen(
     onNavigateBack: () -> Unit,
     onManageApps: () -> Unit,
-    onStartMission: () -> Unit,
+    onStartMission: (
+        missionName: String,
+        missionGoal: String,
+        missionType: String,
+        durationMinutes: Int,
+        blockedApps: List<String>
+    ) -> Unit,
     onCancel: () -> Unit
 ) {
     var missionName by remember { mutableStateOf("Deep Work Sprint") }
@@ -88,7 +94,15 @@ fun CreateMissionScreen(
         onMissionGoalChange = { missionGoal = it },
         onNavigateBack = onNavigateBack,
         onManageApps = onManageApps,
-        onStartMission = onStartMission,
+        onStartMission = {
+            onStartMission(
+                missionName.ifBlank { selectedMissionType },
+                missionGoal,
+                selectedMissionType,
+                selectedDuration,
+                selectedAppsPreview
+            )
+        },
         onCancel = onCancel
     )
 }

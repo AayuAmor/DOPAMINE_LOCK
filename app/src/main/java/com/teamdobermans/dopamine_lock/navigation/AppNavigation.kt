@@ -21,6 +21,7 @@ import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.teamdobermans.dopamine_lock.BuildConfig
 import com.teamdobermans.dopamine_lock.data.repositoryImpl.AuthRepositoryImpl
+import com.teamdobermans.dopamine_lock.data.repositoryImpl.FocusSessionRepositoryImpl
 import com.teamdobermans.dopamine_lock.data.repositoryImpl.UserRepositoryImpl
 import com.teamdobermans.dopamine_lock.firebase.FirebaseProvider
 import com.teamdobermans.dopamine_lock.ui.analytics.AnalyticsScreen
@@ -45,6 +46,8 @@ import com.teamdobermans.dopamine_lock.ui.tasks.TasksScreen
 import com.teamdobermans.dopamine_lock.viewModel.AuthViewModel
 import com.teamdobermans.dopamine_lock.viewModel.AuthViewModelFactory
 import com.teamdobermans.dopamine_lock.ui.auth.AuthProvider
+import com.teamdobermans.dopamine_lock.viewModel.FocusSessionViewModel
+import com.teamdobermans.dopamine_lock.viewModel.FocusSessionViewModelFactory
 import com.teamdobermans.dopamine_lock.viewModel.UserViewModel
 import com.teamdobermans.dopamine_lock.viewModel.UserViewModelFactory
 import kotlinx.coroutines.launch
@@ -70,8 +73,22 @@ fun AppNavigation() {
             )
         )
     )
+    val userRepository = UserRepositoryImpl(
+        auth = FirebaseProvider.auth,
+        database = FirebaseProvider.database
+    )
+    val focusSessionViewModel: FocusSessionViewModel = viewModel(
+        factory = FocusSessionViewModelFactory(
+            FocusSessionRepositoryImpl(
+                auth = FirebaseProvider.auth,
+                database = FirebaseProvider.database,
+                userRepository = userRepository
+            )
+        )
+    )
     val authUiState by authViewModel.uiState.collectAsState()
     val userUiState by userViewModel.uiState.collectAsState()
+    val focusSessionUiState by focusSessionViewModel.uiState.collectAsState()
     val currentBackStackEntry = navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry.value?.destination?.route ?: Screen.Splash.route
 
@@ -114,8 +131,11 @@ fun AppNavigation() {
     LaunchedEffect(authUiState.isAuthenticated, authUiState.user?.uid) {
         if (authUiState.isAuthenticated) {
             userViewModel.observeCurrentUserProfile()
+            focusSessionViewModel.observeSessions()
+            focusSessionViewModel.observeActiveSession()
         } else {
             userViewModel.clearUser()
+            focusSessionViewModel.clear()
         }
     }
 
@@ -256,6 +276,9 @@ fun AppNavigation() {
             DashboardScreen(
                 currentRoute = currentRoute,
                 user = userUiState.user,
+                sessions = focusSessionUiState.sessions,
+                todayFocusHours = focusSessionUiState.todayFocusHours,
+                todaySessionCount = focusSessionUiState.todaySessionCount,
                 onNavigate = ::navigateBottomNav,
                 onStartFocus = {
                     navController.navigate(Screen.CreateMission.route)
@@ -281,7 +304,21 @@ fun AppNavigation() {
                     navController.navigate(Screen.BlockedApps.route)
                 },
                 onStartMission = {
-                    navController.navigate(Screen.Focus.route)
+                    missionName,
+                    missionGoal,
+                    missionType,
+                    durationMinutes,
+                    blockedApps ->
+                    focusSessionViewModel.startSession(
+                        missionName = missionName,
+                        missionGoal = missionGoal,
+                        missionType = missionType,
+                        durationMinutes = durationMinutes,
+                        blockedApps = blockedApps,
+                        onSuccess = {
+                            navController.navigate(Screen.Focus.route)
+                        }
+                    )
                 },
                 onCancel = {
                     navController.popBackStack()
@@ -291,18 +328,23 @@ fun AppNavigation() {
 
         composable(Screen.Focus.route) {
             FocusTimerScreen(
+                activeSession = focusSessionUiState.activeSession,
                 onNavigateBack = {
                     navController.popBackStack()
                 },
                 onNavigateToMission = {
                     navController.navigate(Screen.Mission.route)
-                }
+                },
+                onCompleteSession = focusSessionViewModel::completeSession,
+                onAbandonSession = focusSessionViewModel::abandonSession
             )
         }
 
         composable(Screen.Mission.route) {
             MissionModeScreen(
-                onAbandonMission = {
+                activeSession = focusSessionUiState.activeSession,
+                onAbandonMission = { sessionId, elapsedSeconds ->
+                    focusSessionViewModel.abandonSession(sessionId, elapsedSeconds)
                     navController.navigate(Screen.Dashboard.route) {
                         popUpTo(Screen.Dashboard.route) { inclusive = false }
                     }
@@ -345,6 +387,11 @@ fun AppNavigation() {
         composable(Screen.Analytics.route) {
             AnalyticsScreen(
                 currentRoute = currentRoute,
+                sessions = focusSessionUiState.sessions,
+                totalFocusHours = focusSessionUiState.totalFocusHours,
+                completedSessions = focusSessionUiState.completedSessions,
+                successRate = focusSessionUiState.successRate,
+                weeklyFocusHours = focusSessionUiState.weeklyFocusHours,
                 onNavigate = ::navigateBottomNav,
                 onOpenStreakCalendar = {
                     navController.navigate(Screen.StreakCalendar.route)
@@ -358,6 +405,10 @@ fun AppNavigation() {
         composable(Screen.SessionHistory.route) {
             SessionHistoryScreen(
                 currentRoute = Screen.Dashboard.route,
+                sessions = focusSessionUiState.sessions,
+                totalFocusHours = focusSessionUiState.totalFocusHours,
+                completedSessions = focusSessionUiState.completedSessions,
+                successRate = focusSessionUiState.successRate,
                 onNavigate = ::navigateBottomNav
             )
         }

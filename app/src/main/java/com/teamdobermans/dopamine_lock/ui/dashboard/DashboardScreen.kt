@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.teamdobermans.dopamine_lock.domain.model.FocusSession
 import com.teamdobermans.dopamine_lock.domain.model.User
 import com.teamdobermans.dopamine_lock.navigation.Screen
 import com.teamdobermans.dopamine_lock.ui.components.BottomNavigationBar
@@ -52,12 +53,7 @@ import com.teamdobermans.dopamine_lock.ui.theme.DopamineGrey
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineSurface
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineWhite
 
-private data class RecentSession(
-    val title: String,
-    val duration: String,
-    val time: String,
-    val completed: Boolean
-)
+private data class RecentSession(val title: String, val duration: String, val time: String, val completed: Boolean)
 
 private val recentSessions = listOf(
     RecentSession("Deep Work — Code Review", "52 min", "Today, 09:14", true),
@@ -71,6 +67,9 @@ private val recentSessions = listOf(
 fun DashboardScreen(
     currentRoute: String = Screen.Dashboard.route,
     user: User? = null,
+    sessions: List<FocusSession> = emptyList(),
+    todayFocusHours: Double = 0.0,
+    todaySessionCount: Int = 0,
     onNavigate: (String) -> Unit,
     onStartFocus: () -> Unit = { onNavigate(Screen.Focus.route) },
     onSeeAllSessions: () -> Unit = { onNavigate(Screen.Analytics.route) },
@@ -114,13 +113,13 @@ fun DashboardScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     DashboardStatCard(
-                        value = formatFocusHours(user?.totalFocusHours ?: 0.0),
+                        value = formatFocusHours(todayFocusHours),
                         label = "Focus Hrs",
                         unit = "h",
                         modifier = Modifier.weight(1f)
                     )
                     DashboardStatCard(
-                        value = "6",
+                        value = todaySessionCount.toString(),
                         label = "Sessions",
                         modifier = Modifier.weight(1f)
                     )
@@ -181,10 +180,14 @@ fun DashboardScreen(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            items(recentSessions.size) { index ->
-                val session = recentSessions[index]
+            val recent = if (sessions.isEmpty()) recentSessions else sessions
+                .sortedByDescending { it.startedAt }
+                .take(5)
+                .map { it.toRecentSession() }
+            items(recent.size) { index ->
+                val session = recent[index]
                 SessionListItem(session = session)
-                if (index < recentSessions.size - 1) {
+                if (index < recent.size - 1) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -195,6 +198,17 @@ fun DashboardScreen(
             }
         }
     }
+}
+
+private fun FocusSession.toRecentSession(): RecentSession {
+    val minutes = (elapsedSeconds / 60L).coerceAtLeast(0)
+    val statusTime = if (startedAt > 0L) "Saved session" else "Session"
+    return RecentSession(
+        title = missionName.ifBlank { missionType.ifBlank { "Focus Session" } },
+        duration = "${minutes} min",
+        time = statusTime,
+        completed = completed
+    )
 }
 
 @Composable

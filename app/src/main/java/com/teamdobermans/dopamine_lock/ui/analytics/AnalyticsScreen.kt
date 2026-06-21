@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.teamdobermans.dopamine_lock.domain.model.FocusSession
 import com.teamdobermans.dopamine_lock.navigation.Screen
 import com.teamdobermans.dopamine_lock.ui.components.BottomNavigationBar
 import com.teamdobermans.dopamine_lock.ui.components.DashboardStatCard
@@ -77,6 +78,11 @@ private val focusCategories = listOf(
 @Composable
 fun AnalyticsScreen(
     currentRoute: String = Screen.Analytics.route,
+    sessions: List<FocusSession> = emptyList(),
+    totalFocusHours: Double = 0.0,
+    completedSessions: Int = 0,
+    successRate: Int = 0,
+    weeklyFocusHours: List<Float> = List(7) { 0f },
     onNavigate: (String) -> Unit,
     onOpenStreakCalendar: () -> Unit = {},
     onOpenDisciplineScore: () -> Unit = {}
@@ -122,19 +128,19 @@ fun AnalyticsScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     DashboardStatCard(
-                        value = "29.2",
+                        value = formatHours(totalFocusHours),
                         label = "Total Hrs",
                         unit = "h",
                         modifier = Modifier.weight(1f)
                     )
                     DashboardStatCard(
-                        value = "38",
+                        value = sessions.size.toString(),
                         label = "Sessions",
                         modifier = Modifier.weight(1f)
                     )
                     DashboardStatCard(
-                        value = "12",
-                        label = "Day Streak",
+                        value = successRate.toString(),
+                        label = "Success %",
                         modifier = Modifier.weight(1f),
                         onClick = onOpenStreakCalendar
                     )
@@ -150,7 +156,9 @@ fun AnalyticsScreen(
             item {
                 SectionHeader(title = "Weekly Focus Hours")
                 Spacer(modifier = Modifier.height(16.dp))
-                WeeklyBarChart(data = weeklyData)
+                WeeklyBarChart(data = weeklyData.mapIndexed { index, pair ->
+                    pair.first to weeklyFocusHours.getOrElse(index) { 0f }
+                })
                 Spacer(modifier = Modifier.height(28.dp))
             }
 
@@ -182,9 +190,13 @@ fun AnalyticsScreen(
     }
 }
 
+private fun formatHours(hours: Double): String {
+    return if (hours % 1.0 == 0.0) hours.toInt().toString() else "%.1f".format(hours)
+}
+
 @Composable
 private fun WeeklyBarChart(data: List<Pair<String, Float>>) {
-    val maxValue = data.maxOf { it.second }
+    val maxValue = data.maxOf { it.second }.coerceAtLeast(1f)
 
     Box(
         modifier = Modifier

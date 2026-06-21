@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.teamdobermans.dopamine_lock.domain.model.FocusSession
 import com.teamdobermans.dopamine_lock.ui.components.ButtonVariant
 import com.teamdobermans.dopamine_lock.ui.components.DopamineButton
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineBorder
@@ -59,12 +60,21 @@ private enum class TimerState { Idle, Running, Paused }
 
 @Composable
 fun FocusTimerScreen(
+    activeSession: FocusSession?,
     onNavigateBack: () -> Unit,
-    onNavigateToMission: () -> Unit
+    onNavigateToMission: () -> Unit,
+    onCompleteSession: (sessionId: String, elapsedSeconds: Long) -> Unit,
+    onAbandonSession: (sessionId: String, elapsedSeconds: Long) -> Unit
 ) {
-    val totalSeconds = 25 * 60
+    val totalSeconds = (activeSession?.durationMinutes ?: 25) * 60
     var remainingSeconds by remember { mutableIntStateOf(totalSeconds) }
     var timerState by remember { mutableStateOf(TimerState.Idle) }
+    val elapsedSeconds = (totalSeconds - remainingSeconds).coerceAtLeast(0)
+
+    LaunchedEffect(activeSession?.sessionId, totalSeconds) {
+        remainingSeconds = totalSeconds
+        timerState = TimerState.Idle
+    }
 
     val progress = remainingSeconds.toFloat() / totalSeconds.toFloat()
     val animatedProgress by animateFloatAsState(
@@ -79,7 +89,12 @@ fun FocusTimerScreen(
                 delay(1000L)
                 if (timerState == TimerState.Running) remainingSeconds--
             }
-            if (remainingSeconds == 0) timerState = TimerState.Idle
+            if (remainingSeconds == 0) {
+                timerState = TimerState.Idle
+                activeSession?.sessionId?.takeIf { it.isNotBlank() }?.let {
+                    onCompleteSession(it, totalSeconds.toLong())
+                }
+            }
         }
     }
 
@@ -163,7 +178,7 @@ fun FocusTimerScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
-                text = "DEEP WORK",
+                text = (activeSession?.missionType ?: "DEEP WORK").uppercase(),
                 style = MaterialTheme.typography.labelLarge,
                 color = DopamineGrey,
                 letterSpacing = 3.sp
@@ -172,7 +187,7 @@ fun FocusTimerScreen(
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "25-minute focus block",
+                text = "${activeSession?.durationMinutes ?: 25}-minute focus block",
                 style = MaterialTheme.typography.bodySmall,
                 color = DopamineGrey.copy(alpha = 0.6f)
             )
@@ -205,6 +220,9 @@ fun FocusTimerScreen(
                             text = "End",
                             onClick = {
                                 timerState = TimerState.Idle
+                                activeSession?.sessionId?.takeIf { it.isNotBlank() }?.let {
+                                    onAbandonSession(it, elapsedSeconds.toLong())
+                                }
                                 remainingSeconds = totalSeconds
                             },
                             variant = ButtonVariant.Danger,
@@ -224,6 +242,9 @@ fun FocusTimerScreen(
                             text = "End",
                             onClick = {
                                 timerState = TimerState.Idle
+                                activeSession?.sessionId?.takeIf { it.isNotBlank() }?.let {
+                                    onAbandonSession(it, elapsedSeconds.toLong())
+                                }
                                 remainingSeconds = totalSeconds
                             },
                             variant = ButtonVariant.Danger,
