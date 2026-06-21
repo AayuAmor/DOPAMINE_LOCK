@@ -13,6 +13,7 @@ import com.teamdobermans.dopamine_lock.ui.auth.RegisterScreen
 import com.teamdobermans.dopamine_lock.ui.blockedapps.BlockedAppOverlayScreen
 import com.teamdobermans.dopamine_lock.ui.blockedapps.BlockedAppsScreen
 import com.teamdobermans.dopamine_lock.ui.dashboard.DashboardScreen
+import com.teamdobermans.dopamine_lock.ui.discipline.DisciplineScoreScreen
 import com.teamdobermans.dopamine_lock.ui.focus.FocusTimerScreen
 import com.teamdobermans.dopamine_lock.ui.focus.MissionModeScreen
 import com.teamdobermans.dopamine_lock.ui.history.SessionHistoryScreen
@@ -20,6 +21,7 @@ import com.teamdobermans.dopamine_lock.ui.mission.CreateMissionScreen
 import com.teamdobermans.dopamine_lock.ui.onboarding.OnboardingScreen
 import com.teamdobermans.dopamine_lock.ui.settings.SettingsScreen
 import com.teamdobermans.dopamine_lock.ui.splash.SplashScreen
+import com.teamdobermans.dopamine_lock.ui.streak.StreakCalendarScreen
 import com.teamdobermans.dopamine_lock.ui.tasks.AddEditTaskScreen
 import com.teamdobermans.dopamine_lock.ui.tasks.TasksScreen
 
@@ -122,6 +124,9 @@ fun AppNavigation() {
                 },
                 onSeeAllSessions = {
                     navController.navigate(Screen.SessionHistory.route)
+                },
+                onOpenStreakCalendar = {
+                    navController.navigate(Screen.StreakCalendar.route)
                 }
             )
         }
@@ -199,7 +204,13 @@ fun AppNavigation() {
         composable(Screen.Analytics.route) {
             AnalyticsScreen(
                 currentRoute = currentRoute,
-                onNavigate = ::navigateBottomNav
+                onNavigate = ::navigateBottomNav,
+                onOpenStreakCalendar = {
+                    navController.navigate(Screen.StreakCalendar.route)
+                },
+                onOpenDisciplineScore = {
+                    navController.navigate(Screen.DisciplineScore.route)
+                }
             )
         }
 
@@ -207,6 +218,29 @@ fun AppNavigation() {
             SessionHistoryScreen(
                 currentRoute = Screen.Dashboard.route,
                 onNavigate = ::navigateBottomNav
+            )
+        }
+
+        composable(Screen.StreakCalendar.route) {
+            StreakCalendarScreen(
+                currentRoute = Screen.Dashboard.route,
+                onNavigate = ::navigateBottomNav,
+                onStartMission = {
+                    navController.navigate(Screen.CreateMission.route)
+                }
+            )
+        }
+
+        composable(Screen.DisciplineScore.route) {
+            DisciplineScoreScreen(
+                currentRoute = Screen.Analytics.route,
+                onNavigate = ::navigateBottomNav,
+                onViewStreakCalendar = {
+                    navController.navigate(Screen.StreakCalendar.route)
+                },
+                onStartMission = {
+                    navController.navigate(Screen.CreateMission.route)
+                }
             )
         }
 

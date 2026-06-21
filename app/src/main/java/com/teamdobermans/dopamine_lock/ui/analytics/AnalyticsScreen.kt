@@ -77,7 +77,9 @@ private val focusCategories = listOf(
 @Composable
 fun AnalyticsScreen(
     currentRoute: String = Screen.Analytics.route,
-    onNavigate: (String) -> Unit
+    onNavigate: (String) -> Unit,
+    onOpenStreakCalendar: () -> Unit = {},
+    onOpenDisciplineScore: () -> Unit = {}
 ) {
     Scaffold(
         containerColor = Color.Black,
@@ -133,9 +135,15 @@ fun AnalyticsScreen(
                     DashboardStatCard(
                         value = "12",
                         label = "Day Streak",
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        onClick = onOpenStreakCalendar
                     )
                 }
+                Spacer(modifier = Modifier.height(28.dp))
+            }
+
+            item {
+                DisciplineScoreEntryCard(onClick = onOpenDisciplineScore)
                 Spacer(modifier = Modifier.height(28.dp))
             }
 
@@ -385,6 +393,54 @@ private fun BestDayCard() {
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Bold,
                     color = DopamineWhite
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DisciplineScoreEntryCard(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(color = DopamineCard, shape = RoundedCornerShape(12.dp))
+            .border(1.dp, DopamineBorder, RoundedCornerShape(12.dp))
+            .padding(20.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "DISCIPLINE SCORE",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = DopamineGrey,
+                    letterSpacing = 2.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "A RANK",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = DopamineWhite,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "Top 12% consistency",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = DopamineGrey
+                )
+            }
+            androidx.compose.material3.TextButton(onClick = onClick) {
+                Text(
+                    text = "VIEW",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = DopamineWhite,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
                 )
             }
         }

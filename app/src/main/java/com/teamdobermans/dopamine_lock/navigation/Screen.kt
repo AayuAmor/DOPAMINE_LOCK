@@ -17,4 +17,6 @@ sealed class Screen(val route: String) {
     object BlockedApps : Screen("blocked_apps")
     object BlockedAppOverlay : Screen("blocked_app_overlay")
     object SessionHistory : Screen("session_history")
+    object StreakCalendar : Screen("streak_calendar")
+    object DisciplineScore : Screen("discipline_score")
 }

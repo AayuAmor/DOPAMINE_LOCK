@@ -71,7 +71,8 @@ fun DashboardScreen(
     currentRoute: String = Screen.Dashboard.route,
     onNavigate: (String) -> Unit,
     onStartFocus: () -> Unit = { onNavigate(Screen.Focus.route) },
-    onSeeAllSessions: () -> Unit = { onNavigate(Screen.Analytics.route) }
+    onSeeAllSessions: () -> Unit = { onNavigate(Screen.Analytics.route) },
+    onOpenStreakCalendar: () -> Unit = { onNavigate(Screen.Analytics.route) }
 ) {
     Scaffold(
         containerColor = Color.Black,
@@ -120,7 +121,8 @@ fun DashboardScreen(
                     DashboardStatCard(
                         value = "12",
                         label = "Day Streak",
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        onClick = onOpenStreakCalendar
                     )
                 }
                 Spacer(modifier = Modifier.height(24.dp))

@@ -26,10 +26,13 @@ fun DashboardStatCard(
     value: String,
     label: String,
     modifier: Modifier = Modifier,
-    unit: String = ""
+    unit: String = "",
+    onClick: (() -> Unit)? = null
 ) {
     Card(
         modifier = modifier,
+        onClick = onClick ?: {},
+        enabled = onClick != null,
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = DopamineCard),
         border = BorderStroke(1.dp, DopamineBorder),
