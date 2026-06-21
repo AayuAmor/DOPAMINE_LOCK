@@ -53,6 +53,8 @@ fun RegisterScreen(
     onNavigateToDashboard: () -> Unit,
     authUiState: AuthUiState,
     onRegister: (String, String, String, String) -> Unit,
+    onGoogleSignInClick: () -> Unit,
+    onGitHubSignInClick: () -> Unit,
     onClearMessages: () -> Unit
 ) {
     var fullName by remember { mutableStateOf("") }
@@ -183,7 +185,11 @@ fun RegisterScreen(
             Spacer(modifier = Modifier.height(32.dp))
 
             authUiState.errorMessage?.let { message ->
-                AuthMessage(text = message)
+                AuthMessage(text = message, isError = true)
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+            authUiState.successMessage?.let { message ->
+                AuthMessage(text = message, isError = false)
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
@@ -195,7 +201,26 @@ fun RegisterScreen(
                 },
                 variant = ButtonVariant.Primary,
                 enabled = !authUiState.isLoading,
-                isLoading = authUiState.isLoading
+                isLoading = authUiState.isLoading && authUiState.loadingProvider == null
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            AuthDivider()
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            AuthProviderButtons(
+                isLoading = authUiState.isLoading,
+                loadingProvider = authUiState.loadingProvider,
+                onGoogleClick = {
+                    onClearMessages()
+                    onGoogleSignInClick()
+                },
+                onGitHubClick = {
+                    onClearMessages()
+                    onGitHubSignInClick()
+                }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -207,7 +232,7 @@ fun RegisterScreen(
                 enabled = !authUiState.isLoading
             )
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -230,11 +255,11 @@ fun RegisterScreen(
 }
 
 @Composable
-private fun AuthMessage(text: String) {
+private fun AuthMessage(text: String, isError: Boolean) {
     Text(
         text = text,
         style = MaterialTheme.typography.bodySmall,
-        color = DopamineError,
+        color = if (isError) DopamineError else DopamineWhite,
         textAlign = TextAlign.Center
     )
 }

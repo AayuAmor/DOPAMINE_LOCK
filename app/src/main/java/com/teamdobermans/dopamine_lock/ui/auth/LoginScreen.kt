@@ -20,7 +20,6 @@ import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -30,12 +29,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -43,23 +40,13 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.credentials.CredentialManager
-import androidx.credentials.CustomCredential
-import androidx.credentials.GetCredentialRequest
-import androidx.credentials.exceptions.GetCredentialCancellationException
-import androidx.credentials.exceptions.GetCredentialException
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption
-import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
-import com.teamdobermans.dopamine_lock.BuildConfig
 import com.teamdobermans.dopamine_lock.ui.components.ButtonVariant
 import com.teamdobermans.dopamine_lock.ui.components.DopamineButton
 import com.teamdobermans.dopamine_lock.ui.components.DopamineTextField
-import com.teamdobermans.dopamine_lock.ui.theme.DopamineBorder
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineError
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineGrey
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineWhite
 import com.teamdobermans.dopamine_lock.viewModel.AuthUiState
-import kotlinx.coroutines.launch
 
 @Composable
 fun LoginScreen(
@@ -68,16 +55,14 @@ fun LoginScreen(
     onNavigateToForgotPassword: () -> Unit,
     authUiState: AuthUiState,
     onLogin: (String, String) -> Unit,
-    onGoogleSignIn: (String) -> Unit,
-    onAuthError: (String) -> Unit,
+    onGoogleSignInClick: () -> Unit,
+    onGitHubSignInClick: () -> Unit,
     onClearMessages: () -> Unit
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(authUiState.isAuthenticated) {
         if (authUiState.isAuthenticated) onNavigateToDashboard()
@@ -178,6 +163,10 @@ fun LoginScreen(
                 AuthMessage(text = message, isError = true)
                 Spacer(modifier = Modifier.height(12.dp))
             }
+            authUiState.successMessage?.let { message ->
+                AuthMessage(text = message, isError = false)
+                Spacer(modifier = Modifier.height(12.dp))
+            }
 
             DopamineButton(
                 text = "Sign In",
@@ -187,68 +176,26 @@ fun LoginScreen(
                 },
                 variant = ButtonVariant.Primary,
                 enabled = !authUiState.isLoading,
-                isLoading = authUiState.isLoading
+                isLoading = authUiState.isLoading && authUiState.loadingProvider == null
             )
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                HorizontalDivider(modifier = Modifier.weight(1f), color = DopamineBorder)
-                Text(
-                    text = "  OR  ",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = DopamineGrey
-                )
-                HorizontalDivider(modifier = Modifier.weight(1f), color = DopamineBorder)
-            }
+            AuthDivider()
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            DopamineButton(
-                text = "Continue with Google",
-                onClick = {
+            AuthProviderButtons(
+                isLoading = authUiState.isLoading,
+                loadingProvider = authUiState.loadingProvider,
+                onGoogleClick = {
                     onClearMessages()
-                    if (BuildConfig.GOOGLE_WEB_CLIENT_ID.isBlank()) {
-                        onAuthError("Google Sign-In is not configured.")
-                        return@DopamineButton
-                    }
-                    coroutineScope.launch {
-                        runCatching {
-                            val credentialManager = CredentialManager.create(context)
-                            val googleIdOption = GetGoogleIdOption.Builder()
-                                .setFilterByAuthorizedAccounts(false)
-                                .setServerClientId(BuildConfig.GOOGLE_WEB_CLIENT_ID)
-                                .build()
-                            val request = GetCredentialRequest.Builder()
-                                .addCredentialOption(googleIdOption)
-                                .build()
-                            credentialManager.getCredential(context, request).credential
-                        }.onSuccess { credential ->
-                            if (
-                                credential is CustomCredential &&
-                                credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
-                            ) {
-                                val googleCredential = GoogleIdTokenCredential.createFrom(credential.data)
-                                onGoogleSignIn(googleCredential.idToken)
-                            } else {
-                                onAuthError("Google Sign-In failed. Please try again.")
-                            }
-                        }.onFailure { exception ->
-                            val message = when (exception) {
-                                is GetCredentialCancellationException -> "Google Sign-In cancelled."
-                                is GetCredentialException -> "Google Sign-In failed. Please try again."
-                                else -> "Google Sign-In failed. Please try again."
-                            }
-                            onAuthError(message)
-                        }
-                    }
+                    onGoogleSignInClick()
                 },
-                variant = ButtonVariant.Secondary,
-                enabled = !authUiState.isLoading,
-                leadingIcon = null
+                onGitHubClick = {
+                    onClearMessages()
+                    onGitHubSignInClick()
+                }
             )
 
             Spacer(modifier = Modifier.height(40.dp))

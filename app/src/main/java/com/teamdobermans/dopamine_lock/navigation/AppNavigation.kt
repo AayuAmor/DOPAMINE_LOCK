@@ -4,12 +4,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.GetCredentialException
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.teamdobermans.dopamine_lock.BuildConfig
 import com.teamdobermans.dopamine_lock.data.repositoryImpl.AuthRepositoryImpl
 import com.teamdobermans.dopamine_lock.firebase.FirebaseProvider
 import com.teamdobermans.dopamine_lock.ui.analytics.AnalyticsScreen
@@ -33,10 +43,14 @@ import com.teamdobermans.dopamine_lock.ui.tasks.AddEditTaskScreen
 import com.teamdobermans.dopamine_lock.ui.tasks.TasksScreen
 import com.teamdobermans.dopamine_lock.viewModel.AuthViewModel
 import com.teamdobermans.dopamine_lock.viewModel.AuthViewModelFactory
+import com.teamdobermans.dopamine_lock.ui.auth.AuthProvider
+import kotlinx.coroutines.launch
 
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val authViewModel: AuthViewModel = viewModel(
         factory = AuthViewModelFactory(
             AuthRepositoryImpl(
@@ -95,6 +109,45 @@ fun AppNavigation() {
         }
     }
 
+    fun launchGoogleSignIn() {
+        if (BuildConfig.GOOGLE_WEB_CLIENT_ID.isBlank()) {
+            authViewModel.setError("Google Sign-In is not configured.")
+            return
+        }
+
+        authViewModel.startOAuthLoading(AuthProvider.Google)
+        coroutineScope.launch {
+            runCatching {
+                val credentialManager = CredentialManager.create(context)
+                val googleIdOption = GetGoogleIdOption.Builder()
+                    .setFilterByAuthorizedAccounts(false)
+                    .setServerClientId(BuildConfig.GOOGLE_WEB_CLIENT_ID)
+                    .build()
+                val request = GetCredentialRequest.Builder()
+                    .addCredentialOption(googleIdOption)
+                    .build()
+                credentialManager.getCredential(context, request).credential
+            }.onSuccess { credential ->
+                if (
+                    credential is CustomCredential &&
+                    credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+                ) {
+                    val googleCredential = GoogleIdTokenCredential.createFrom(credential.data)
+                    authViewModel.googleSignIn(googleCredential.idToken)
+                } else {
+                    authViewModel.setError("Google Sign-In failed. Please try again.")
+                }
+            }.onFailure { exception ->
+                val message = when (exception) {
+                    is GetCredentialCancellationException -> "Google Sign-In cancelled."
+                    is GetCredentialException -> "Google Sign-In failed. Please try again."
+                    else -> "Google Sign-In failed. Please try again."
+                }
+                authViewModel.setError(message)
+            }
+        }
+    }
+
     NavHost(
         navController = navController,
         startDestination = Screen.Splash.route
@@ -144,8 +197,8 @@ fun AppNavigation() {
                 },
                 authUiState = authUiState,
                 onLogin = authViewModel::login,
-                onGoogleSignIn = authViewModel::googleSignIn,
-                onAuthError = authViewModel::setError,
+                onGoogleSignInClick = ::launchGoogleSignIn,
+                onGitHubSignInClick = authViewModel::githubSignIn,
                 onClearMessages = authViewModel::clearMessages
             )
         }
@@ -162,6 +215,8 @@ fun AppNavigation() {
                 },
                 authUiState = authUiState,
                 onRegister = authViewModel::register,
+                onGoogleSignInClick = ::launchGoogleSignIn,
+                onGitHubSignInClick = authViewModel::githubSignIn,
                 onClearMessages = authViewModel::clearMessages
             )
         }

@@ -18,7 +18,8 @@ data class AuthUiState(
     val user: User? = null,
     val errorMessage: String? = null,
     val successMessage: String? = null,
-    val hasCheckedAuthState: Boolean = false
+    val hasCheckedAuthState: Boolean = false,
+    val loadingProvider: String? = null
 )
 
 class AuthViewModel(
@@ -98,6 +99,28 @@ class AuthViewModel(
         }
     }
 
+    fun startOAuthLoading(provider: String) {
+        _uiState.update {
+            it.copy(
+                isLoading = true,
+                loadingProvider = provider,
+                errorMessage = null,
+                successMessage = null
+            )
+        }
+    }
+
+    fun githubSignIn() {
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                loadingProvider = null,
+                errorMessage = null,
+                successMessage = "GitHub sign-in coming soon"
+            )
+        }
+    }
+
     fun checkAuthState() {
         viewModelScope.launch {
             val currentUser = authRepository.getCurrentFirebaseUser()
@@ -123,7 +146,7 @@ class AuthViewModel(
     }
 
     fun clearMessages() {
-        _uiState.update { it.copy(errorMessage = null, successMessage = null) }
+        _uiState.update { it.copy(errorMessage = null, successMessage = null, loadingProvider = null, isLoading = false) }
     }
 
     private fun runAuthAction(action: suspend () -> Result<User>) {
@@ -135,7 +158,11 @@ class AuthViewModel(
                 }
                 .onFailure { exception ->
                     _uiState.update {
-                        it.copy(isLoading = false, errorMessage = exception.message ?: "Authentication failed.")
+                        it.copy(
+                            isLoading = false,
+                            loadingProvider = null,
+                            errorMessage = exception.message ?: "Authentication failed."
+                        )
                     }
                 }
         }
@@ -169,7 +196,7 @@ class AuthViewModel(
     }
 
     private fun showError(message: String) {
-        _uiState.update { it.copy(errorMessage = message, successMessage = null) }
+        _uiState.update { it.copy(isLoading = false, loadingProvider = null, errorMessage = message, successMessage = null) }
     }
 }
 
