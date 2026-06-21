@@ -62,6 +62,7 @@ import com.teamdobermans.dopamine_lock.ui.theme.DopamineWhite
 fun SettingsScreen(
     currentRoute: String = Screen.Settings.route,
     onNavigate: (String) -> Unit,
+    onNavigateToBlockedApps: () -> Unit = {},
     onLogout: () -> Unit
 ) {
     var notificationsEnabled by remember { mutableStateOf(true) }
@@ -156,6 +157,13 @@ fun SettingsScreen(
                         label = "Break Duration",
                         trailing = "5 min",
                         onClick = {}
+                    )
+                    SettingsDivider()
+                    SettingsNavigationRow(
+                        icon = Icons.Filled.Lock,
+                        label = "Blocked Apps",
+                        trailing = "Configure",
+                        onClick = onNavigateToBlockedApps
                     )
                 }
             }

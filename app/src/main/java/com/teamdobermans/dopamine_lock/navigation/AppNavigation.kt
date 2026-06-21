@@ -10,6 +10,7 @@ import com.teamdobermans.dopamine_lock.ui.analytics.AnalyticsScreen
 import com.teamdobermans.dopamine_lock.ui.auth.ForgotPasswordScreen
 import com.teamdobermans.dopamine_lock.ui.auth.LoginScreen
 import com.teamdobermans.dopamine_lock.ui.auth.RegisterScreen
+import com.teamdobermans.dopamine_lock.ui.blockedapps.BlockedAppsScreen
 import com.teamdobermans.dopamine_lock.ui.dashboard.DashboardScreen
 import com.teamdobermans.dopamine_lock.ui.focus.FocusTimerScreen
 import com.teamdobermans.dopamine_lock.ui.focus.MissionModeScreen
@@ -166,10 +167,23 @@ fun AppNavigation() {
             SettingsScreen(
                 currentRoute = currentRoute,
                 onNavigate = ::navigateBottomNav,
+                onNavigateToBlockedApps = {
+                    navController.navigate(Screen.BlockedApps.route)
+                },
                 onLogout = {
                     navController.navigate(Screen.Login.route) {
                         popUpTo(0) { inclusive = true }
                     }
+                }
+            )
+        }
+
+        composable(Screen.BlockedApps.route) {
+            BlockedAppsScreen(
+                currentRoute = Screen.Settings.route,
+                onNavigate = ::navigateBottomNav,
+                onNavigateBack = {
+                    navController.popBackStack()
                 }
             )
         }

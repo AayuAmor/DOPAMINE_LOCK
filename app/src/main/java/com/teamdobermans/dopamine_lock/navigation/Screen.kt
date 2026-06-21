@@ -13,4 +13,5 @@ sealed class Screen(val route: String) {
     object AddTask : Screen("add_task")
     object Analytics : Screen("analytics")
     object Settings : Screen("settings")
+    object BlockedApps : Screen("blocked_apps")
 }
