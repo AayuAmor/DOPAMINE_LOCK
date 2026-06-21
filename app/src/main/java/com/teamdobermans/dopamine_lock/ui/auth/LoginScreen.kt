@@ -26,13 +26,16 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -40,23 +43,45 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.GetCredentialException
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.teamdobermans.dopamine_lock.BuildConfig
 import com.teamdobermans.dopamine_lock.ui.components.ButtonVariant
 import com.teamdobermans.dopamine_lock.ui.components.DopamineButton
 import com.teamdobermans.dopamine_lock.ui.components.DopamineTextField
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineBorder
+import com.teamdobermans.dopamine_lock.ui.theme.DopamineError
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineGrey
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineWhite
+import com.teamdobermans.dopamine_lock.viewModel.AuthUiState
+import kotlinx.coroutines.launch
 
 @Composable
 fun LoginScreen(
     onNavigateToDashboard: () -> Unit,
     onNavigateToRegister: () -> Unit,
-    onNavigateToForgotPassword: () -> Unit
+    onNavigateToForgotPassword: () -> Unit,
+    authUiState: AuthUiState,
+    onLogin: (String, String) -> Unit,
+    onGoogleSignIn: (String) -> Unit,
+    onAuthError: (String) -> Unit,
+    onClearMessages: () -> Unit
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(authUiState.isAuthenticated) {
+        if (authUiState.isAuthenticated) onNavigateToDashboard()
+    }
 
     Box(
         modifier = Modifier
@@ -149,10 +174,20 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
+            authUiState.errorMessage?.let { message ->
+                AuthMessage(text = message, isError = true)
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
             DopamineButton(
                 text = "Sign In",
-                onClick = onNavigateToDashboard,
-                variant = ButtonVariant.Primary
+                onClick = {
+                    onClearMessages()
+                    onLogin(email, password)
+                },
+                variant = ButtonVariant.Primary,
+                enabled = !authUiState.isLoading,
+                isLoading = authUiState.isLoading
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -174,8 +209,45 @@ fun LoginScreen(
 
             DopamineButton(
                 text = "Continue with Google",
-                onClick = {},
+                onClick = {
+                    onClearMessages()
+                    if (BuildConfig.GOOGLE_WEB_CLIENT_ID.isBlank()) {
+                        onAuthError("Google Sign-In is not configured.")
+                        return@DopamineButton
+                    }
+                    coroutineScope.launch {
+                        runCatching {
+                            val credentialManager = CredentialManager.create(context)
+                            val googleIdOption = GetGoogleIdOption.Builder()
+                                .setFilterByAuthorizedAccounts(false)
+                                .setServerClientId(BuildConfig.GOOGLE_WEB_CLIENT_ID)
+                                .build()
+                            val request = GetCredentialRequest.Builder()
+                                .addCredentialOption(googleIdOption)
+                                .build()
+                            credentialManager.getCredential(context, request).credential
+                        }.onSuccess { credential ->
+                            if (
+                                credential is CustomCredential &&
+                                credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+                            ) {
+                                val googleCredential = GoogleIdTokenCredential.createFrom(credential.data)
+                                onGoogleSignIn(googleCredential.idToken)
+                            } else {
+                                onAuthError("Google Sign-In failed. Please try again.")
+                            }
+                        }.onFailure { exception ->
+                            val message = when (exception) {
+                                is GetCredentialCancellationException -> "Google Sign-In cancelled."
+                                is GetCredentialException -> "Google Sign-In failed. Please try again."
+                                else -> "Google Sign-In failed. Please try again."
+                            }
+                            onAuthError(message)
+                        }
+                    }
+                },
                 variant = ButtonVariant.Secondary,
+                enabled = !authUiState.isLoading,
                 leadingIcon = null
             )
 
@@ -199,4 +271,15 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
+}
+
+@Composable
+private fun AuthMessage(text: String, isError: Boolean) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = if (isError) DopamineError else DopamineWhite,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth()
+    )
 }

@@ -8,10 +8,10 @@
             <InsightsFilterSettings>
               <option name="connection">
                 <ConnectionSetting>
-                  <option name="appId" value="PLACEHOLDER" />
-                  <option name="mobileSdkAppId" value="" />
-                  <option name="projectId" value="" />
-                  <option name="projectNumber" value="" />
+                  <option name="appId" value="com.teamdobermans.dopamine_lock" />
+                  <option name="mobileSdkAppId" value="1:702362416033:android:5ed1c15aefb908591c11e0" />
+                  <option name="projectId" value="dopaminelock" />
+                  <option name="projectNumber" value="702362416033" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />

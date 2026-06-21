@@ -24,6 +24,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,13 +42,18 @@ import androidx.compose.ui.unit.sp
 import com.teamdobermans.dopamine_lock.ui.components.ButtonVariant
 import com.teamdobermans.dopamine_lock.ui.components.DopamineButton
 import com.teamdobermans.dopamine_lock.ui.components.DopamineTextField
+import com.teamdobermans.dopamine_lock.ui.theme.DopamineError
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineGrey
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineWhite
+import com.teamdobermans.dopamine_lock.viewModel.AuthUiState
 
 @Composable
 fun RegisterScreen(
     onNavigateToLogin: () -> Unit,
-    onNavigateToDashboard: () -> Unit
+    onNavigateToDashboard: () -> Unit,
+    authUiState: AuthUiState,
+    onRegister: (String, String, String, String) -> Unit,
+    onClearMessages: () -> Unit
 ) {
     var fullName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
@@ -56,6 +62,10 @@ fun RegisterScreen(
     var passwordVisible by remember { mutableStateOf(false) }
     var confirmPasswordVisible by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
+
+    LaunchedEffect(authUiState.isAuthenticated) {
+        if (authUiState.isAuthenticated) onNavigateToDashboard()
+    }
 
     Box(
         modifier = Modifier
@@ -172,10 +182,20 @@ fun RegisterScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
+            authUiState.errorMessage?.let { message ->
+                AuthMessage(text = message)
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
             DopamineButton(
                 text = "Create Account",
-                onClick = onNavigateToDashboard,
-                variant = ButtonVariant.Primary
+                onClick = {
+                    onClearMessages()
+                    onRegister(fullName, email, password, confirmPassword)
+                },
+                variant = ButtonVariant.Primary,
+                enabled = !authUiState.isLoading,
+                isLoading = authUiState.isLoading
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -183,7 +203,8 @@ fun RegisterScreen(
             DopamineButton(
                 text = "Cancel",
                 onClick = onNavigateToLogin,
-                variant = ButtonVariant.Secondary
+                variant = ButtonVariant.Secondary,
+                enabled = !authUiState.isLoading
             )
 
             Spacer(modifier = Modifier.height(40.dp))
@@ -206,4 +227,14 @@ fun RegisterScreen(
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
+}
+
+@Composable
+private fun AuthMessage(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = DopamineError,
+        textAlign = TextAlign.Center
+    )
 }

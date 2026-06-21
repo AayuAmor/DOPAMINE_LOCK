@@ -1,11 +1,17 @@
 package com.teamdobermans.dopamine_lock.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.teamdobermans.dopamine_lock.data.repositoryImpl.AuthRepositoryImpl
+import com.teamdobermans.dopamine_lock.firebase.FirebaseProvider
 import com.teamdobermans.dopamine_lock.ui.analytics.AnalyticsScreen
 import com.teamdobermans.dopamine_lock.ui.auth.ForgotPasswordScreen
 import com.teamdobermans.dopamine_lock.ui.auth.LoginScreen
@@ -25,10 +31,21 @@ import com.teamdobermans.dopamine_lock.ui.splash.SplashScreen
 import com.teamdobermans.dopamine_lock.ui.streak.StreakCalendarScreen
 import com.teamdobermans.dopamine_lock.ui.tasks.AddEditTaskScreen
 import com.teamdobermans.dopamine_lock.ui.tasks.TasksScreen
+import com.teamdobermans.dopamine_lock.viewModel.AuthViewModel
+import com.teamdobermans.dopamine_lock.viewModel.AuthViewModelFactory
 
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
+    val authViewModel: AuthViewModel = viewModel(
+        factory = AuthViewModelFactory(
+            AuthRepositoryImpl(
+                auth = FirebaseProvider.auth,
+                database = FirebaseProvider.database
+            )
+        )
+    )
+    val authUiState by authViewModel.uiState.collectAsState()
     val currentBackStackEntry = navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry.value?.destination?.route ?: Screen.Splash.route
 
@@ -39,6 +56,34 @@ fun AppNavigation() {
         Screen.Analytics.route,
         Screen.Settings.route
     )
+
+    val publicRoutes = setOf(
+        Screen.Splash.route,
+        Screen.Onboarding.route,
+        Screen.Login.route,
+        Screen.Register.route,
+        Screen.ForgotPassword.route
+    )
+
+    LaunchedEffect(Unit) {
+        authViewModel.checkAuthState()
+    }
+
+    LaunchedEffect(authUiState.hasCheckedAuthState, authUiState.isAuthenticated, currentRoute) {
+        if (!authUiState.hasCheckedAuthState) return@LaunchedEffect
+
+        if (authUiState.isAuthenticated && currentRoute in publicRoutes && currentRoute != Screen.Splash.route) {
+            navController.navigate(Screen.Dashboard.route) {
+                popUpTo(0) { inclusive = true }
+            }
+        }
+
+        if (!authUiState.isAuthenticated && currentRoute !in publicRoutes) {
+            navController.navigate(Screen.Login.route) {
+                popUpTo(0) { inclusive = true }
+            }
+        }
+    }
 
     fun navigateBottomNav(route: String) {
         navController.navigate(route) {
@@ -57,7 +102,12 @@ fun AppNavigation() {
         composable(Screen.Splash.route) {
             SplashScreen(
                 onNavigateToOnboarding = {
-                    navController.navigate(Screen.Onboarding.route) {
+                    val destination = if (authUiState.isAuthenticated) {
+                        Screen.Dashboard.route
+                    } else {
+                        Screen.Onboarding.route
+                    }
+                    navController.navigate(destination) {
                         popUpTo(Screen.Splash.route) { inclusive = true }
                     }
                 }
@@ -91,7 +141,12 @@ fun AppNavigation() {
                 },
                 onNavigateToForgotPassword = {
                     navController.navigate(Screen.ForgotPassword.route)
-                }
+                },
+                authUiState = authUiState,
+                onLogin = authViewModel::login,
+                onGoogleSignIn = authViewModel::googleSignIn,
+                onAuthError = authViewModel::setError,
+                onClearMessages = authViewModel::clearMessages
             )
         }
 
@@ -104,7 +159,10 @@ fun AppNavigation() {
                     navController.navigate(Screen.Dashboard.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
                     }
-                }
+                },
+                authUiState = authUiState,
+                onRegister = authViewModel::register,
+                onClearMessages = authViewModel::clearMessages
             )
         }
 
@@ -112,7 +170,10 @@ fun AppNavigation() {
             ForgotPasswordScreen(
                 onNavigateToLogin = {
                     navController.popBackStack()
-                }
+                },
+                authUiState = authUiState,
+                onSendReset = authViewModel::forgotPassword,
+                onClearMessages = authViewModel::clearMessages
             )
         }
 
@@ -266,9 +327,7 @@ fun AppNavigation() {
                     navController.navigate(Screen.BlockedApps.route)
                 },
                 onLogout = {
-                    navController.navigate(Screen.Login.route) {
-                        popUpTo(0) { inclusive = true }
-                    }
+                    authViewModel.logout()
                 }
             )
         }

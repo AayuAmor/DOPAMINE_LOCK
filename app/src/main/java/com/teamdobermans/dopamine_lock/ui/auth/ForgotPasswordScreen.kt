@@ -41,15 +41,20 @@ import com.teamdobermans.dopamine_lock.ui.components.ButtonVariant
 import com.teamdobermans.dopamine_lock.ui.components.DopamineButton
 import com.teamdobermans.dopamine_lock.ui.components.DopamineTextField
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineCard
+import com.teamdobermans.dopamine_lock.ui.theme.DopamineError
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineGrey
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineWhite
+import com.teamdobermans.dopamine_lock.viewModel.AuthUiState
 
 @Composable
 fun ForgotPasswordScreen(
-    onNavigateToLogin: () -> Unit
+    onNavigateToLogin: () -> Unit,
+    authUiState: AuthUiState,
+    onSendReset: (String) -> Unit,
+    onClearMessages: () -> Unit
 ) {
     var email by remember { mutableStateOf("") }
-    var emailSent by remember { mutableStateOf(false) }
+    val emailSent = authUiState.successMessage != null
     val scrollState = rememberScrollState()
 
     Box(
@@ -133,10 +138,20 @@ fun ForgotPasswordScreen(
 
                 Spacer(modifier = Modifier.height(32.dp))
 
+                authUiState.errorMessage?.let { message ->
+                    AuthMessage(text = message, isError = true)
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
                 DopamineButton(
                     text = "Send Reset Link",
-                    onClick = { if (email.isNotEmpty()) emailSent = true },
-                    variant = ButtonVariant.Primary
+                    onClick = {
+                        onClearMessages()
+                        onSendReset(email)
+                    },
+                    variant = ButtonVariant.Primary,
+                    enabled = !authUiState.isLoading,
+                    isLoading = authUiState.isLoading
                 )
             } else {
                 Box(
@@ -166,8 +181,13 @@ fun ForgotPasswordScreen(
 
                 DopamineButton(
                     text = "Resend Email",
-                    onClick = {},
-                    variant = ButtonVariant.Secondary
+                    onClick = {
+                        onClearMessages()
+                        onSendReset(email)
+                    },
+                    variant = ButtonVariant.Secondary,
+                    enabled = !authUiState.isLoading,
+                    isLoading = authUiState.isLoading
                 )
             }
 
@@ -194,4 +214,15 @@ fun ForgotPasswordScreen(
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
+}
+
+@Composable
+private fun AuthMessage(text: String, isError: Boolean) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = if (isError) DopamineError else DopamineWhite,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth()
+    )
 }
