@@ -10,10 +10,12 @@ import com.teamdobermans.dopamine_lock.ui.analytics.AnalyticsScreen
 import com.teamdobermans.dopamine_lock.ui.auth.ForgotPasswordScreen
 import com.teamdobermans.dopamine_lock.ui.auth.LoginScreen
 import com.teamdobermans.dopamine_lock.ui.auth.RegisterScreen
+import com.teamdobermans.dopamine_lock.ui.blockedapps.BlockedAppOverlayScreen
 import com.teamdobermans.dopamine_lock.ui.blockedapps.BlockedAppsScreen
 import com.teamdobermans.dopamine_lock.ui.dashboard.DashboardScreen
 import com.teamdobermans.dopamine_lock.ui.focus.FocusTimerScreen
 import com.teamdobermans.dopamine_lock.ui.focus.MissionModeScreen
+import com.teamdobermans.dopamine_lock.ui.history.SessionHistoryScreen
 import com.teamdobermans.dopamine_lock.ui.mission.CreateMissionScreen
 import com.teamdobermans.dopamine_lock.ui.onboarding.OnboardingScreen
 import com.teamdobermans.dopamine_lock.ui.settings.SettingsScreen
@@ -117,6 +119,9 @@ fun AppNavigation() {
                 onNavigate = ::navigateBottomNav,
                 onStartFocus = {
                     navController.navigate(Screen.CreateMission.route)
+                },
+                onSeeAllSessions = {
+                    navController.navigate(Screen.SessionHistory.route)
                 }
             )
         }
@@ -159,6 +164,20 @@ fun AppNavigation() {
             )
         }
 
+        composable(Screen.BlockedAppOverlay.route) {
+            BlockedAppOverlayScreen(
+                onReturnToMission = {
+                    navController.navigate(Screen.Mission.route)
+                },
+                onViewMissionRules = {
+                    navController.navigate(Screen.Mission.route)
+                },
+                onAbandonMission = {
+                    navController.navigate(Screen.Focus.route)
+                }
+            )
+        }
+
         composable(Screen.Tasks.route) {
             TasksScreen(
                 currentRoute = currentRoute,
@@ -180,6 +199,13 @@ fun AppNavigation() {
         composable(Screen.Analytics.route) {
             AnalyticsScreen(
                 currentRoute = currentRoute,
+                onNavigate = ::navigateBottomNav
+            )
+        }
+
+        composable(Screen.SessionHistory.route) {
+            SessionHistoryScreen(
+                currentRoute = Screen.Dashboard.route,
                 onNavigate = ::navigateBottomNav
             )
         }

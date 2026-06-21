@@ -70,7 +70,8 @@ private val recentSessions = listOf(
 fun DashboardScreen(
     currentRoute: String = Screen.Dashboard.route,
     onNavigate: (String) -> Unit,
-    onStartFocus: () -> Unit = { onNavigate(Screen.Focus.route) }
+    onStartFocus: () -> Unit = { onNavigate(Screen.Focus.route) },
+    onSeeAllSessions: () -> Unit = { onNavigate(Screen.Analytics.route) }
 ) {
     Scaffold(
         containerColor = Color.Black,
@@ -166,7 +167,7 @@ fun DashboardScreen(
                 SectionHeader(
                     title = "Recent Sessions",
                     action = "See All",
-                    onActionClick = { onNavigate(Screen.Analytics.route) }
+                    onActionClick = onSeeAllSessions
                 )
                 Spacer(modifier = Modifier.height(12.dp))
             }
