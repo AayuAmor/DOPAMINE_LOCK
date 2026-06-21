@@ -16,6 +16,7 @@ import com.teamdobermans.dopamine_lock.ui.dashboard.DashboardScreen
 import com.teamdobermans.dopamine_lock.ui.discipline.DisciplineScoreScreen
 import com.teamdobermans.dopamine_lock.ui.focus.FocusTimerScreen
 import com.teamdobermans.dopamine_lock.ui.focus.MissionModeScreen
+import com.teamdobermans.dopamine_lock.ui.goals.GoalTrackingScreen
 import com.teamdobermans.dopamine_lock.ui.history.SessionHistoryScreen
 import com.teamdobermans.dopamine_lock.ui.mission.CreateMissionScreen
 import com.teamdobermans.dopamine_lock.ui.onboarding.OnboardingScreen
@@ -127,6 +128,9 @@ fun AppNavigation() {
                 },
                 onOpenStreakCalendar = {
                     navController.navigate(Screen.StreakCalendar.route)
+                },
+                onOpenGoalTracking = {
+                    navController.navigate(Screen.GoalTracking.route)
                 }
             )
         }
@@ -238,6 +242,16 @@ fun AppNavigation() {
                 onViewStreakCalendar = {
                     navController.navigate(Screen.StreakCalendar.route)
                 },
+                onStartMission = {
+                    navController.navigate(Screen.CreateMission.route)
+                }
+            )
+        }
+
+        composable(Screen.GoalTracking.route) {
+            GoalTrackingScreen(
+                currentRoute = Screen.Dashboard.route,
+                onNavigate = ::navigateBottomNav,
                 onStartMission = {
                     navController.navigate(Screen.CreateMission.route)
                 }

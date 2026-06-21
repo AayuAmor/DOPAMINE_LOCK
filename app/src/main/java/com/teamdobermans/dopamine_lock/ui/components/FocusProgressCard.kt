@@ -32,13 +32,16 @@ fun FocusProgressCard(
     current: Float,
     total: Float,
     unit: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
 ) {
     val progress = if (total > 0f) (current / total).coerceIn(0f, 1f) else 0f
     val percentage = (progress * 100).toInt()
 
     Card(
         modifier = modifier.fillMaxWidth(),
+        onClick = onClick ?: {},
+        enabled = onClick != null,
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = DopamineCard),
         border = BorderStroke(1.dp, DopamineBorder),

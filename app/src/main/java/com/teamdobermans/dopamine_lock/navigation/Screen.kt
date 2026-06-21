@@ -19,4 +19,5 @@ sealed class Screen(val route: String) {
     object SessionHistory : Screen("session_history")
     object StreakCalendar : Screen("streak_calendar")
     object DisciplineScore : Screen("discipline_score")
+    object GoalTracking : Screen("goal_tracking")
 }

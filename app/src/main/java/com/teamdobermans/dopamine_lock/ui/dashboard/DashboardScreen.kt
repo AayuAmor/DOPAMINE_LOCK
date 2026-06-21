@@ -72,7 +72,8 @@ fun DashboardScreen(
     onNavigate: (String) -> Unit,
     onStartFocus: () -> Unit = { onNavigate(Screen.Focus.route) },
     onSeeAllSessions: () -> Unit = { onNavigate(Screen.Analytics.route) },
-    onOpenStreakCalendar: () -> Unit = { onNavigate(Screen.Analytics.route) }
+    onOpenStreakCalendar: () -> Unit = { onNavigate(Screen.Analytics.route) },
+    onOpenGoalTracking: () -> Unit = { onNavigate(Screen.Analytics.route) }
 ) {
     Scaffold(
         containerColor = Color.Black,
@@ -135,7 +136,8 @@ fun DashboardScreen(
                     title = "Daily Focus Goal",
                     current = 4.2f,
                     total = 6f,
-                    unit = "hours"
+                    unit = "hours",
+                    onClick = onOpenGoalTracking
                 )
                 Spacer(modifier = Modifier.height(24.dp))
             }
