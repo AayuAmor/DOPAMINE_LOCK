@@ -32,11 +32,13 @@ class AuthRepositoryImpl(
 
         val authResult = auth.createUserWithEmailAndPassword(email.trim(), password).await()
         val firebaseUser = authResult.user ?: throw AuthException("Unable to create account. Try again.")
+        val now = System.currentTimeMillis()
         val user = User(
             uid = firebaseUser.uid,
             name = name.trim(),
             email = email.trim(),
-            createdAt = System.currentTimeMillis()
+            createdAt = now,
+            updatedAt = now
         )
 
         usersRef.child(firebaseUser.uid).setValue(user).await()
@@ -83,11 +85,17 @@ class AuthRepositoryImpl(
     }
 
     private suspend fun createGoogleUserProfile(firebaseUser: FirebaseUser): User {
+        val now = System.currentTimeMillis()
         val user = User(
             uid = firebaseUser.uid,
-            name = firebaseUser.displayName.orEmpty(),
+            name = firebaseUser.displayName?.takeIf { it.isNotBlank() } ?: "Focus Warrior",
             email = firebaseUser.email.orEmpty(),
-            createdAt = System.currentTimeMillis()
+            disciplineScore = 0,
+            currentStreak = 0,
+            bestStreak = 0,
+            totalFocusHours = 0.0,
+            createdAt = now,
+            updatedAt = now
         )
         usersRef.child(firebaseUser.uid).setValue(user).await()
         return user

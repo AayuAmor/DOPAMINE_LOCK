@@ -1,91 +1,156 @@
 package com.teamdobermans.dopamine_lock.viewModel
 
-import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
-import com.teamdobermans.dopamine_lock.model.UserModel
-import com.teamdobermans.dopamine_lock.repo.UserRepo
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import com.teamdobermans.dopamine_lock.data.repository.UserRepository
+import com.teamdobermans.dopamine_lock.domain.model.User
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
+data class UserUiState(
+    val isLoading: Boolean = false,
+    val user: User? = null,
+    val errorMessage: String? = null,
+    val successMessage: String? = null
+)
 
-class UserViewModel(val repo: UserRepo) : ViewModel() {
+class UserViewModel(
+    private val userRepository: UserRepository
+) : ViewModel() {
+    private val _uiState = MutableStateFlow(UserUiState())
+    val uiState: StateFlow<UserUiState> = _uiState.asStateFlow()
 
-    fun login(
-        email: String, password: String,
-        callback: (Boolean, String) -> Unit
-    ) {
-        repo.login(email, password, callback)
-    }
+    private var observeProfileJob: Job? = null
 
-
-    fun forgetPassword(
-        email: String,
-        callback: (Boolean, String) -> Unit
-    ) {
-        repo.forgetPassword(email, callback)
-    }
-
-    private val _loading = MutableLiveData<Boolean>()
-    val loading: MutableLiveData<Boolean> get() = _loading
-
-    private val _users = MutableLiveData<UserModel?>()
-    val users: MutableLiveData<UserModel?> get() = _users
-
-
-    fun getUserById(
-        id: String
-    ) {
-        _loading.value = true
-        repo.getUserById(id) { success, msg, data ->
-            if (success) {
-                _users.value = data
-                _loading.value = false
-            } else {
-                _users.value = null
-                _loading.value = false
-            }
+    fun loadCurrentUserProfile() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, errorMessage = null, successMessage = null) }
+            userRepository.getCurrentUserProfile()
+                .onSuccess { user ->
+                    _uiState.update { it.copy(isLoading = false, user = user) }
+                }
+                .onFailure { exception ->
+                    _uiState.update {
+                        it.copy(isLoading = false, errorMessage = exception.message ?: "Failed to load profile.")
+                    }
+                }
         }
     }
 
-    private val _allUsers = MutableLiveData<List<UserModel?>>()
-    val allUsers: MutableLiveData<List<UserModel?>> get() = _allUsers
-
-    fun getAllUser() {
-        _loading.value = true
-        repo.getAllUser { success, message, data ->
-            if (success) {
-                _loading.value = false
-                _allUsers.value = data
-            } else {
-                _loading.value = false
-                _allUsers.value = emptyList()
-            }
-
+    fun observeCurrentUserProfile() {
+        observeProfileJob?.cancel()
+        observeProfileJob = viewModelScope.launch {
+            userRepository.ensureUserProfileExists()
+                .onSuccess { user ->
+                    _uiState.update { it.copy(isLoading = false, user = user, errorMessage = null) }
+                    observeProfile(user.uid)
+                }
+                .onFailure { exception ->
+                    _uiState.update {
+                        it.copy(isLoading = false, errorMessage = exception.message ?: "Failed to load profile.")
+                    }
+                }
         }
     }
 
-
-    fun logout(callback: (Boolean, String) -> Unit) {
-        repo.logout(callback);
+    fun updateUserName(name: String) {
+        val uid = _uiState.value.user?.uid ?: return showError("User not authenticated.")
+        updateProfileField { userRepository.updateUserName(uid, name) }
     }
 
-
-    //authentication
-    fun register(
-        email: String, password: String,
-        callback: (Boolean, String, String) -> Unit
-    ) {
-        repo.register(email, password, callback)
+    fun updateUserProfile(user: User) {
+        updateProfileField { userRepository.updateUserProfile(user) }
     }
 
-
-    fun addUser(id: String, model: UserModel, callback: (Boolean, String) -> Unit) {
-        repo.addUser(id, model, callback)
+    fun updateDisciplineScore(score: Int) {
+        val uid = _uiState.value.user?.uid ?: return showError("User not authenticated.")
+        updateProfileField { userRepository.updateDisciplineScore(uid, score) }
     }
 
-    fun editProfile(id: String, model: UserModel, callback: (Boolean, String) -> Unit) {
-        repo.editProfile(id, model, callback)
+    fun updateStreaks(currentStreak: Int, bestStreak: Int) {
+        val uid = _uiState.value.user?.uid ?: return showError("User not authenticated.")
+        updateProfileField { userRepository.updateStreaks(uid, currentStreak, bestStreak) }
     }
 
-    fun deleteUser(id: String, callback: (Boolean, String) -> Unit) {
-        repo.deleteUser(id, callback)
+    fun updateTotalFocusHours(hours: Double) {
+        val uid = _uiState.value.user?.uid ?: return showError("User not authenticated.")
+        updateProfileField { userRepository.updateTotalFocusHours(uid, hours) }
+    }
+
+    fun ensureUserProfileExists() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, errorMessage = null, successMessage = null) }
+            userRepository.ensureUserProfileExists()
+                .onSuccess { user ->
+                    _uiState.update { it.copy(isLoading = false, user = user) }
+                }
+                .onFailure { exception ->
+                    _uiState.update {
+                        it.copy(isLoading = false, errorMessage = exception.message ?: "Failed to load profile.")
+                    }
+                }
+        }
+    }
+
+    fun clearMessages() {
+        _uiState.update { it.copy(errorMessage = null, successMessage = null) }
+    }
+
+    fun clearUser() {
+        observeProfileJob?.cancel()
+        observeProfileJob = null
+        _uiState.value = UserUiState()
+    }
+
+    private suspend fun observeProfile(uid: String) {
+        userRepository.observeUserProfile(uid).collect { result ->
+            result
+                .onSuccess { user ->
+                    _uiState.update { it.copy(isLoading = false, user = user, errorMessage = null) }
+                }
+                .onFailure { exception ->
+                    _uiState.update {
+                        it.copy(isLoading = false, errorMessage = exception.message ?: "Failed to load profile.")
+                    }
+                }
+        }
+    }
+
+    private fun updateProfileField(action: suspend () -> Result<Unit>) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, errorMessage = null, successMessage = null) }
+            action()
+                .onSuccess {
+                    _uiState.update {
+                        it.copy(isLoading = false, successMessage = "Profile updated.")
+                    }
+                }
+                .onFailure { exception ->
+                    _uiState.update {
+                        it.copy(isLoading = false, errorMessage = exception.message ?: "Failed to update profile.")
+                    }
+                }
+        }
+    }
+
+    private fun showError(message: String) {
+        _uiState.update { it.copy(errorMessage = message, successMessage = null) }
+    }
+}
+
+class UserViewModelFactory(
+    private val userRepository: UserRepository
+) : ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(UserViewModel::class.java)) {
+            return UserViewModel(userRepository) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
     }
 }

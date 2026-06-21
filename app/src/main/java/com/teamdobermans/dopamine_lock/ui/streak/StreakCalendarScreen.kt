@@ -34,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.teamdobermans.dopamine_lock.domain.model.User
 import com.teamdobermans.dopamine_lock.navigation.Screen
 import com.teamdobermans.dopamine_lock.ui.components.BottomNavigationBar
 import com.teamdobermans.dopamine_lock.ui.components.DopamineButton
@@ -80,6 +81,7 @@ private val june2026Days = buildList {
 @Composable
 fun StreakCalendarScreen(
     currentRoute: String = Screen.Dashboard.route,
+    user: User? = null,
     onNavigate: (String) -> Unit,
     onStartMission: () -> Unit
 ) {
@@ -102,7 +104,7 @@ fun StreakCalendarScreen(
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             item { StreakCalendarHeader() }
-            item { StreakSummaryCards() }
+            item { StreakSummaryCards(user = user) }
             item {
                 DopamineCard {
                     CalendarMonthSelector()
@@ -113,7 +115,7 @@ fun StreakCalendarScreen(
                 }
             }
             item { WeeklyConsistencyCard() }
-            item { StreakMilestoneCard() }
+            item { StreakMilestoneCard(currentStreak = user?.currentStreak ?: 0) }
             item { StreakCalendarActions(onStartMission = onStartMission) }
         }
     }
@@ -140,13 +142,13 @@ private fun StreakCalendarHeader() {
 }
 
 @Composable
-private fun StreakSummaryCards() {
+private fun StreakSummaryCards(user: User?) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        SummaryCard(value = "12", label = "Current Streak", unit = "Days", modifier = Modifier.weight(1f))
-        SummaryCard(value = "38", label = "Best Streak", unit = "Days", modifier = Modifier.weight(1f))
+        SummaryCard(value = (user?.currentStreak ?: 0).toString(), label = "Current Streak", unit = "Days", modifier = Modifier.weight(1f))
+        SummaryCard(value = (user?.bestStreak ?: 0).toString(), label = "Best Streak", unit = "Days", modifier = Modifier.weight(1f))
         SummaryCard(value = "87%", label = "Completion Rate", unit = "", modifier = Modifier.weight(1f))
     }
 }
@@ -241,24 +243,31 @@ private fun WeeklyConsistencyCard() {
 }
 
 @Composable
-private fun StreakMilestoneCard() {
+private fun StreakMilestoneCard(currentStreak: Int) {
+    val nextMilestone = when {
+        currentStreak < 15 -> 15
+        currentStreak < 30 -> 30
+        currentStreak < 60 -> 60
+        else -> currentStreak + 30
+    }
+
     DopamineCard {
         SectionLabel("NEXT MILESTONE")
         Spacer(modifier = Modifier.height(10.dp))
         Text(
-            text = "15-Day Streak",
+            text = "$nextMilestone-Day Streak",
             style = MaterialTheme.typography.titleLarge,
             color = DopamineWhite,
             fontWeight = FontWeight.Bold
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Progress: 12 / 15 days",
+            text = "Progress: $currentStreak / $nextMilestone days",
             style = MaterialTheme.typography.bodyMedium,
             color = DopamineGrey
         )
         Spacer(modifier = Modifier.height(12.dp))
-        ProgressBar(progress = 12f / 15f)
+        ProgressBar(progress = currentStreak.toFloat() / nextMilestone.toFloat())
         Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = "Reward: Discipline Rank Upgrade",
@@ -422,6 +431,7 @@ private fun SectionLabel(text: String) {
 private fun StreakCalendarScreenPreview() {
     DOPAMINE_LOCKTheme {
         StreakCalendarScreen(
+            user = User(currentStreak = 12, bestStreak = 38),
             onNavigate = {},
             onStartMission = {}
         )

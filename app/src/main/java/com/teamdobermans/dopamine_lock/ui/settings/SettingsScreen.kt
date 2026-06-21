@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.teamdobermans.dopamine_lock.domain.model.User
 import com.teamdobermans.dopamine_lock.navigation.Screen
 import com.teamdobermans.dopamine_lock.ui.components.BottomNavigationBar
 import com.teamdobermans.dopamine_lock.ui.components.ButtonVariant
@@ -61,6 +62,7 @@ import com.teamdobermans.dopamine_lock.ui.theme.DopamineWhite
 @Composable
 fun SettingsScreen(
     currentRoute: String = Screen.Settings.route,
+    user: User? = null,
     onNavigate: (String) -> Unit,
     onNavigateToBlockedApps: () -> Unit = {},
     onLogout: () -> Unit
@@ -105,7 +107,7 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(32.dp))
             }
 
-            item { ProfileCard() }
+            item { ProfileCard(user = user) }
 
             item {
                 Spacer(modifier = Modifier.height(28.dp))
@@ -235,7 +237,12 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun ProfileCard() {
+private fun ProfileCard(user: User?) {
+    val displayName = user?.name?.takeIf { it.isNotBlank() } ?: "Focus Warrior"
+    val email = user?.email?.takeIf { it.isNotBlank() } ?: "No email available"
+    val streak = user?.currentStreak ?: 0
+    val disciplineScore = user?.disciplineScore ?: 0
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -252,7 +259,7 @@ private fun ProfileCard() {
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "A",
+                text = displayName.firstOrNull()?.uppercaseChar()?.toString() ?: "F",
                 style = MaterialTheme.typography.headlineSmall,
                 color = DopamineWhite,
                 fontWeight = FontWeight.Bold
@@ -261,14 +268,14 @@ private fun ProfileCard() {
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "Aayush",
+                text = displayName,
                 style = MaterialTheme.typography.titleMedium,
                 color = DopamineWhite,
                 fontWeight = FontWeight.SemiBold
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "aayushdada01@gmail.com",
+                text = email,
                 style = MaterialTheme.typography.bodySmall,
                 color = DopamineGrey
             )
@@ -280,7 +287,7 @@ private fun ProfileCard() {
                     .padding(horizontal = 8.dp, vertical = 3.dp)
             ) {
                 Text(
-                    text = "12-DAY STREAK",
+                    text = "$streak-DAY STREAK • $disciplineScore XP",
                     style = MaterialTheme.typography.labelSmall,
                     color = DopamineWhite,
                     fontSize = 9.sp,

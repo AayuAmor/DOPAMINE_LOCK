@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.teamdobermans.dopamine_lock.domain.model.User
 import com.teamdobermans.dopamine_lock.navigation.Screen
 import com.teamdobermans.dopamine_lock.ui.components.BottomNavigationBar
 import com.teamdobermans.dopamine_lock.ui.components.ButtonVariant
@@ -69,6 +70,7 @@ private val recentSessions = listOf(
 @Composable
 fun DashboardScreen(
     currentRoute: String = Screen.Dashboard.route,
+    user: User? = null,
     onNavigate: (String) -> Unit,
     onStartFocus: () -> Unit = { onNavigate(Screen.Focus.route) },
     onSeeAllSessions: () -> Unit = { onNavigate(Screen.Analytics.route) },
@@ -97,7 +99,10 @@ fun DashboardScreen(
         ) {
             item {
                 Spacer(modifier = Modifier.height(24.dp))
-                DashboardHeader(onNotificationsClick = {})
+                DashboardHeader(
+                    userName = user?.name?.takeIf { it.isNotBlank() } ?: "Focus Warrior",
+                    onNotificationsClick = {}
+                )
                 Spacer(modifier = Modifier.height(28.dp))
             }
 
@@ -109,7 +114,7 @@ fun DashboardScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     DashboardStatCard(
-                        value = "4.2",
+                        value = formatFocusHours(user?.totalFocusHours ?: 0.0),
                         label = "Focus Hrs",
                         unit = "h",
                         modifier = Modifier.weight(1f)
@@ -120,7 +125,7 @@ fun DashboardScreen(
                         modifier = Modifier.weight(1f)
                     )
                     DashboardStatCard(
-                        value = "12",
+                        value = (user?.currentStreak ?: 0).toString(),
                         label = "Day Streak",
                         modifier = Modifier.weight(1f),
                         onClick = onOpenStreakCalendar
@@ -193,7 +198,10 @@ fun DashboardScreen(
 }
 
 @Composable
-private fun DashboardHeader(onNotificationsClick: () -> Unit) {
+private fun DashboardHeader(
+    userName: String,
+    onNotificationsClick: () -> Unit
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -208,7 +216,7 @@ private fun DashboardHeader(onNotificationsClick: () -> Unit) {
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "Aayush",
+                text = userName,
                 style = MaterialTheme.typography.headlineMedium,
                 color = DopamineWhite,
                 fontWeight = FontWeight.Bold
@@ -236,13 +244,21 @@ private fun DashboardHeader(onNotificationsClick: () -> Unit) {
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "A",
+                    text = userName.firstOrNull()?.uppercaseChar()?.toString() ?: "F",
                     style = MaterialTheme.typography.titleMedium,
                     color = DopamineWhite,
                     fontWeight = FontWeight.Bold
                 )
             }
         }
+    }
+}
+
+private fun formatFocusHours(hours: Double): String {
+    return if (hours % 1.0 == 0.0) {
+        hours.toInt().toString()
+    } else {
+        "%.1f".format(hours)
     }
 }
 

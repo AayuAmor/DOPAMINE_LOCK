@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.teamdobermans.dopamine_lock.domain.model.User
 import com.teamdobermans.dopamine_lock.navigation.Screen
 import com.teamdobermans.dopamine_lock.ui.components.BottomNavigationBar
 import com.teamdobermans.dopamine_lock.ui.components.ButtonVariant
@@ -66,6 +67,7 @@ private val scoreBreakdown = listOf(
 @Composable
 fun DisciplineScoreScreen(
     currentRoute: String = Screen.Analytics.route,
+    user: User? = null,
     onNavigate: (String) -> Unit,
     onViewStreakCalendar: () -> Unit,
     onStartMission: () -> Unit
@@ -89,8 +91,8 @@ fun DisciplineScoreScreen(
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             item { DisciplineScoreHeader() }
-            item { DisciplineHeroCard() }
-            item { RankProgressSection() }
+            item { DisciplineHeroCard(score = user?.disciplineScore ?: 0) }
+            item { RankProgressSection(score = user?.disciplineScore ?: 0) }
             item { ScoreBreakdownCard() }
             item { DisciplineTrendCard() }
             item { AchievementBadgesSection() }
@@ -126,7 +128,11 @@ private fun DisciplineScoreHeader() {
 }
 
 @Composable
-private fun DisciplineHeroCard() {
+private fun DisciplineHeroCard(score: Int) {
+    val rank = rankForScore(score)
+    val nextRankTarget = nextRankTarget(score)
+    val progress = (score.toFloat() / nextRankTarget.toFloat()).coerceIn(0f, 1f)
+
     DopamineCard {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -135,13 +141,13 @@ private fun DisciplineHeroCard() {
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "862",
+                    text = score.toString(),
                     style = MaterialTheme.typography.displayLarge,
                     color = DopamineWhite,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "A RANK",
+                    text = "$rank RANK",
                     style = MaterialTheme.typography.labelLarge,
                     color = DopamineWhite,
                     fontWeight = FontWeight.Bold,
@@ -149,26 +155,30 @@ private fun DisciplineHeroCard() {
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Top 12% consistency",
+                    text = if (score > 0) "Top 12% consistency" else "Build consistency to rank up",
                     style = MaterialTheme.typography.bodyMedium,
                     color = DopamineGrey
                 )
                 Spacer(modifier = Modifier.height(14.dp))
                 Text(
-                    text = "862 / 1000 TO NEXT RANK",
+                    text = "$score / $nextRankTarget TO NEXT RANK",
                     style = MaterialTheme.typography.labelSmall,
                     color = DopamineDim,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.2.sp
                 )
             }
-            ScoreArc(progress = 0.862f)
+            ScoreArc(progress = progress)
         }
     }
 }
 
 @Composable
-private fun RankProgressSection() {
+private fun RankProgressSection(score: Int) {
+    val rank = rankForScore(score)
+    val nextRank = nextRankForScore(score)
+    val needed = (nextRankTarget(score) - score).coerceAtLeast(0)
+
     DopamineCard {
         SectionLabel("RANK SYSTEM")
         Spacer(modifier = Modifier.height(14.dp))
@@ -176,14 +186,14 @@ private fun RankProgressSection() {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            RankMetric("CURRENT", "A")
-            RankMetric("NEXT", "S")
-            RankMetric("NEEDED", "138 XP")
+            RankMetric("CURRENT", rank)
+            RankMetric("NEXT", nextRank)
+            RankMetric("NEEDED", "$needed XP")
         }
         Spacer(modifier = Modifier.height(18.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             items(rankLadder) { rank ->
-                RankBadge(rank = rank, selected = rank == "A")
+                RankBadge(rank = rank, selected = rank == rankForScore(score))
             }
         }
     }
@@ -287,11 +297,44 @@ private fun ScoreArc(progress: Float) {
             )
         }
         Text(
-            text = "86%",
+            text = "${(progress * 100).toInt()}%",
             style = MaterialTheme.typography.titleMedium,
             color = DopamineWhite,
             fontWeight = FontWeight.Bold
         )
+    }
+}
+
+private fun rankForScore(score: Int): String {
+    return when {
+        score >= 1200 -> "S+"
+        score >= 1000 -> "S"
+        score >= 750 -> "A"
+        score >= 500 -> "B"
+        score >= 250 -> "C"
+        else -> "D"
+    }
+}
+
+private fun nextRankForScore(score: Int): String {
+    return when {
+        score >= 1200 -> "MAX"
+        score >= 1000 -> "S+"
+        score >= 750 -> "S"
+        score >= 500 -> "A"
+        score >= 250 -> "B"
+        else -> "C"
+    }
+}
+
+private fun nextRankTarget(score: Int): Int {
+    return when {
+        score >= 1200 -> 1200
+        score >= 1000 -> 1200
+        score >= 750 -> 1000
+        score >= 500 -> 750
+        score >= 250 -> 500
+        else -> 250
     }
 }
 
@@ -424,6 +467,7 @@ private fun SectionLabel(text: String) {
 private fun DisciplineScoreScreenPreview() {
     DOPAMINE_LOCKTheme {
         DisciplineScoreScreen(
+            user = User(disciplineScore = 862),
             onNavigate = {},
             onViewStreakCalendar = {},
             onStartMission = {}

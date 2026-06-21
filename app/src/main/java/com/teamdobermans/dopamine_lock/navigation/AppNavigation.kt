@@ -21,6 +21,7 @@ import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.teamdobermans.dopamine_lock.BuildConfig
 import com.teamdobermans.dopamine_lock.data.repositoryImpl.AuthRepositoryImpl
+import com.teamdobermans.dopamine_lock.data.repositoryImpl.UserRepositoryImpl
 import com.teamdobermans.dopamine_lock.firebase.FirebaseProvider
 import com.teamdobermans.dopamine_lock.ui.analytics.AnalyticsScreen
 import com.teamdobermans.dopamine_lock.ui.auth.ForgotPasswordScreen
@@ -44,6 +45,8 @@ import com.teamdobermans.dopamine_lock.ui.tasks.TasksScreen
 import com.teamdobermans.dopamine_lock.viewModel.AuthViewModel
 import com.teamdobermans.dopamine_lock.viewModel.AuthViewModelFactory
 import com.teamdobermans.dopamine_lock.ui.auth.AuthProvider
+import com.teamdobermans.dopamine_lock.viewModel.UserViewModel
+import com.teamdobermans.dopamine_lock.viewModel.UserViewModelFactory
 import kotlinx.coroutines.launch
 
 @Composable
@@ -59,7 +62,16 @@ fun AppNavigation() {
             )
         )
     )
+    val userViewModel: UserViewModel = viewModel(
+        factory = UserViewModelFactory(
+            UserRepositoryImpl(
+                auth = FirebaseProvider.auth,
+                database = FirebaseProvider.database
+            )
+        )
+    )
     val authUiState by authViewModel.uiState.collectAsState()
+    val userUiState by userViewModel.uiState.collectAsState()
     val currentBackStackEntry = navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry.value?.destination?.route ?: Screen.Splash.route
 
@@ -96,6 +108,14 @@ fun AppNavigation() {
             navController.navigate(Screen.Login.route) {
                 popUpTo(0) { inclusive = true }
             }
+        }
+    }
+
+    LaunchedEffect(authUiState.isAuthenticated, authUiState.user?.uid) {
+        if (authUiState.isAuthenticated) {
+            userViewModel.observeCurrentUserProfile()
+        } else {
+            userViewModel.clearUser()
         }
     }
 
@@ -235,6 +255,7 @@ fun AppNavigation() {
         composable(Screen.Dashboard.route) {
             DashboardScreen(
                 currentRoute = currentRoute,
+                user = userUiState.user,
                 onNavigate = ::navigateBottomNav,
                 onStartFocus = {
                     navController.navigate(Screen.CreateMission.route)
@@ -344,6 +365,7 @@ fun AppNavigation() {
         composable(Screen.StreakCalendar.route) {
             StreakCalendarScreen(
                 currentRoute = Screen.Dashboard.route,
+                user = userUiState.user,
                 onNavigate = ::navigateBottomNav,
                 onStartMission = {
                     navController.navigate(Screen.CreateMission.route)
@@ -354,6 +376,7 @@ fun AppNavigation() {
         composable(Screen.DisciplineScore.route) {
             DisciplineScoreScreen(
                 currentRoute = Screen.Analytics.route,
+                user = userUiState.user,
                 onNavigate = ::navigateBottomNav,
                 onViewStreakCalendar = {
                     navController.navigate(Screen.StreakCalendar.route)
@@ -377,6 +400,7 @@ fun AppNavigation() {
         composable(Screen.Settings.route) {
             SettingsScreen(
                 currentRoute = currentRoute,
+                user = userUiState.user,
                 onNavigate = ::navigateBottomNav,
                 onNavigateToBlockedApps = {
                     navController.navigate(Screen.BlockedApps.route)

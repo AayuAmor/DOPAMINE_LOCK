@@ -129,15 +129,15 @@ class AuthViewModel(
                 return@launch
             }
 
-            _uiState.update { it.copy(isLoading = true, errorMessage = null, successMessage = null) }
-            authRepository.getCurrentUserProfile()
-                .onSuccess { user ->
-                    _uiState.value = AuthUiState(isAuthenticated = true, user = user, hasCheckedAuthState = true)
-                }
-                .onFailure {
-                    authRepository.logout()
-                    _uiState.value = AuthUiState(isAuthenticated = false, hasCheckedAuthState = true)
-                }
+            _uiState.value = AuthUiState(
+                isAuthenticated = true,
+                user = User(
+                    uid = currentUser.uid,
+                    name = currentUser.displayName.orEmpty(),
+                    email = currentUser.email.orEmpty()
+                ),
+                hasCheckedAuthState = true
+            )
         }
     }
 
