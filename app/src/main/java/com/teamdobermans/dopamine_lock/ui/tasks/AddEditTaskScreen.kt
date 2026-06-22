@@ -3,6 +3,7 @@ package com.teamdobermans.dopamine_lock.ui.tasks
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,9 +13,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,10 +26,18 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Title
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDefaults
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -46,14 +56,20 @@ import com.teamdobermans.dopamine_lock.model.TaskPriority
 import com.teamdobermans.dopamine_lock.ui.components.ButtonVariant
 import com.teamdobermans.dopamine_lock.ui.components.DopamineButton
 import com.teamdobermans.dopamine_lock.ui.components.DopamineTextField
+import com.teamdobermans.dopamine_lock.ui.theme.DopamineBlack
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineBorder
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineCard
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineError
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineGrey
+import com.teamdobermans.dopamine_lock.ui.theme.DopamineSubtle
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineWhite
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private val categories = listOf("Work", "Development", "Design", "Health", "Learning", "Personal")
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEditTaskScreen(
     onNavigateBack: () -> Unit,
@@ -68,6 +84,8 @@ fun AddEditTaskScreen(
     var selectedCategory by remember { mutableStateOf("") }
     var dueDate by remember { mutableStateOf("") }
     var selectedPriority by remember { mutableStateOf(TaskPriority.MEDIUM) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    val datePickerState = rememberDatePickerState()
     val scrollState = rememberScrollState()
 
     LaunchedEffect(successMessage) {
@@ -77,17 +95,63 @@ fun AddEditTaskScreen(
         }
     }
 
+    if (showDatePicker) {
+        val pickerColors = DatePickerDefaults.colors(
+            containerColor = DopamineCard,
+            titleContentColor = DopamineGrey,
+            headlineContentColor = DopamineWhite,
+            weekdayContentColor = DopamineGrey,
+            subheadContentColor = DopamineGrey,
+            navigationContentColor = DopamineWhite,
+            yearContentColor = DopamineGrey,
+            currentYearContentColor = DopamineWhite,
+            selectedYearContentColor = DopamineBlack,
+            selectedYearContainerColor = DopamineWhite,
+            dayContentColor = DopamineGrey,
+            selectedDayContentColor = DopamineBlack,
+            selectedDayContainerColor = DopamineWhite,
+            todayContentColor = DopamineWhite,
+            todayDateBorderColor = DopamineWhite,
+            dayInSelectionRangeContentColor = DopamineGrey,
+            dayInSelectionRangeContainerColor = DopamineCard,
+            dividerColor = DopamineBorder
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        dueDate = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+                            .format(Date(millis))
+                    }
+                    showDatePicker = false
+                }) {
+                    Text("OK", color = DopamineWhite, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("Cancel", color = DopamineGrey)
+                }
+            },
+            colors = pickerColors
+        ) {
+            DatePicker(state = datePickerState, colors = pickerColors)
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .systemBarsPadding()
+            .statusBarsPadding()
             .imePadding()
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(scrollState)
+                .navigationBarsPadding()
                 .padding(horizontal = 24.dp)
         ) {
             Spacer(modifier = Modifier.height(16.dp))
@@ -187,14 +251,9 @@ fun AddEditTaskScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            DopamineTextField(
+            DueDateField(
                 value = dueDate,
-                onValueChange = { dueDate = it },
-                label = "Due Date",
-                placeholder = "e.g. Jun 25, 2025",
-                leadingIcon = {
-                    Icon(imageVector = Icons.Filled.CalendarToday, contentDescription = null, tint = DopamineGrey)
-                }
+                onClick = { showDatePicker = true }
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -259,6 +318,60 @@ fun AddEditTaskScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
         }
+    }
+}
+
+@Composable
+private fun DueDateField(value: String, onClick: () -> Unit) {
+    Box(modifier = Modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = {},
+            readOnly = true,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(8.dp),
+            label = {
+                Text(
+                    text = "DUE DATE",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = DopamineGrey
+                )
+            },
+            placeholder = {
+                Text(text = "Select a date", color = DopamineSubtle)
+            },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Filled.CalendarToday,
+                    contentDescription = null,
+                    tint = DopamineGrey,
+                    modifier = Modifier.size(20.dp)
+                )
+            },
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = DopamineWhite,
+                unfocusedTextColor = DopamineWhite,
+                focusedContainerColor = DopamineCard,
+                unfocusedContainerColor = DopamineCard,
+                focusedBorderColor = DopamineWhite,
+                unfocusedBorderColor = DopamineBorder,
+                focusedLabelColor = DopamineWhite,
+                unfocusedLabelColor = DopamineGrey,
+                focusedLeadingIconColor = DopamineGrey,
+                unfocusedLeadingIconColor = DopamineGrey,
+                cursorColor = DopamineWhite
+            )
+        )
+        // Transparent overlay intercepts taps without blocking the text field's visual state
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() },
+                    onClick = onClick
+                )
+        )
     }
 }
 
