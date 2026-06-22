@@ -21,9 +21,11 @@ import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.teamdobermans.dopamine_lock.BuildConfig
 import com.teamdobermans.dopamine_lock.model.DisciplineEvent
+import com.teamdobermans.dopamine_lock.model.Goal
 import com.teamdobermans.dopamine_lock.repo.AuthRepositoryImpl
 import com.teamdobermans.dopamine_lock.repo.DisciplineRepositoryImpl
 import com.teamdobermans.dopamine_lock.repo.FocusSessionRepositoryImpl
+import com.teamdobermans.dopamine_lock.repo.GoalRepositoryImpl
 import com.teamdobermans.dopamine_lock.repo.MissionRepositoryImpl
 import com.teamdobermans.dopamine_lock.repo.StreakRepositoryImpl
 import com.teamdobermans.dopamine_lock.repo.UserRepositoryImpl
@@ -54,6 +56,8 @@ import com.teamdobermans.dopamine_lock.viewModel.DisciplineViewModel
 import com.teamdobermans.dopamine_lock.viewModel.DisciplineViewModelFactory
 import com.teamdobermans.dopamine_lock.viewModel.FocusSessionViewModel
 import com.teamdobermans.dopamine_lock.viewModel.FocusSessionViewModelFactory
+import com.teamdobermans.dopamine_lock.viewModel.GoalViewModel
+import com.teamdobermans.dopamine_lock.viewModel.GoalViewModelFactory
 import com.teamdobermans.dopamine_lock.viewModel.MissionViewModel
 import com.teamdobermans.dopamine_lock.viewModel.MissionViewModelFactory
 import com.teamdobermans.dopamine_lock.viewModel.UserViewModel
@@ -90,6 +94,11 @@ fun AppNavigation() {
         database = FirebaseProvider.database,
         userRepository = userRepository
     )
+    val goalRepository = GoalRepositoryImpl(
+        auth = FirebaseProvider.auth,
+        database = FirebaseProvider.database,
+        disciplineRepository = disciplineRepository
+    )
     val streakRepository = StreakRepositoryImpl(
         auth = FirebaseProvider.auth,
         database = FirebaseProvider.database,
@@ -103,7 +112,8 @@ fun AppNavigation() {
                 database = FirebaseProvider.database,
                 userRepository = userRepository,
                 streakRepository = streakRepository,
-                disciplineRepository = disciplineRepository
+                disciplineRepository = disciplineRepository,
+                goalRepository = goalRepository
             )
         )
     )
@@ -114,18 +124,23 @@ fun AppNavigation() {
                 database = FirebaseProvider.database,
                 userRepository = userRepository,
                 streakRepository = streakRepository,
-                disciplineRepository = disciplineRepository
+                disciplineRepository = disciplineRepository,
+                goalRepository = goalRepository
             )
         )
     )
     val disciplineViewModel: DisciplineViewModel = viewModel(
         factory = DisciplineViewModelFactory(disciplineRepository)
     )
+    val goalViewModel: GoalViewModel = viewModel(
+        factory = GoalViewModelFactory(goalRepository)
+    )
     val authUiState by authViewModel.uiState.collectAsState()
     val userUiState by userViewModel.uiState.collectAsState()
     val focusSessionUiState by focusSessionViewModel.uiState.collectAsState()
     val missionUiState by missionViewModel.uiState.collectAsState()
     val disciplineUiState by disciplineViewModel.uiState.collectAsState()
+    val goalUiState by goalViewModel.uiState.collectAsState()
     val currentBackStackEntry = navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry.value?.destination?.route ?: Screen.Splash.route
 
@@ -175,11 +190,13 @@ fun AppNavigation() {
             disciplineViewModel.observeScore()
             disciplineViewModel.observeRank()
             disciplineViewModel.observeHistory()
+            goalViewModel.observeGoals()
         } else {
             userViewModel.clearUser()
             focusSessionViewModel.clear()
             missionViewModel.clear()
             disciplineViewModel.clear()
+            goalViewModel.clear()
         }
     }
 
@@ -324,6 +341,9 @@ fun AppNavigation() {
                 disciplineScore = disciplineUiState.score,
                 disciplineRank = disciplineUiState.rank,
                 recentDisciplineEvent = disciplineUiState.recentEvents.firstOrNull(),
+                dailyGoals = goalUiState.dailyGoals,
+                weeklyGoals = goalUiState.weeklyGoals,
+                monthlyGoals = goalUiState.monthlyGoals,
                 todayFocusHours = focusSessionUiState.todayFocusHours,
                 todaySessionCount = focusSessionUiState.todaySessionCount,
                 onNavigate = ::navigateBottomNav,
@@ -487,6 +507,11 @@ fun AppNavigation() {
                 averageDailyDisciplineGain = averageDailyDisciplineGain(disciplineUiState.events),
                 mostValuableHabit = mostValuableHabit(disciplineUiState.events),
                 scoreGrowthTrend = scoreGrowthTrend(disciplineUiState.events, disciplineUiState.score),
+                goalsCreated = goalUiState.goals.size,
+                goalsCompleted = goalUiState.completedGoals.size,
+                goalCompletionRate = goalCompletionRate(goalUiState.goals),
+                averageGoalCompletionTimeHours = averageGoalCompletionTimeHours(goalUiState.completedGoals),
+                mostSuccessfulGoalType = mostSuccessfulGoalType(goalUiState.completedGoals),
                 onNavigate = ::navigateBottomNav,
                 onOpenStreakCalendar = {
                     navController.navigate(Screen.StreakCalendar.route)
@@ -540,6 +565,13 @@ fun AppNavigation() {
         composable(Screen.GoalTracking.route) {
             GoalTrackingScreen(
                 currentRoute = Screen.Dashboard.route,
+                goals = goalUiState.goals,
+                dailyGoals = goalUiState.dailyGoals,
+                weeklyGoals = goalUiState.weeklyGoals,
+                monthlyGoals = goalUiState.monthlyGoals,
+                activeGoals = goalUiState.activeGoals,
+                completedGoals = goalUiState.completedGoals,
+                onCreateGoal = goalViewModel::createGoal,
                 onNavigate = ::navigateBottomNav,
                 onStartMission = {
                     navController.navigate(Screen.CreateMission.route)
@@ -605,6 +637,29 @@ private fun scoreGrowthTrend(events: List<DisciplineEvent>, currentScore: Int): 
     }
 }
 
+private fun goalCompletionRate(goals: List<Goal>): Int {
+    if (goals.isEmpty()) return 0
+    return ((goals.count { it.completed }.toFloat() / goals.size.toFloat()) * 100).toInt()
+}
+
+private fun averageGoalCompletionTimeHours(goals: List<Goal>): Int {
+    val completedDurations = goals
+        .filter { it.completedAt > 0L && it.createdAt > 0L }
+        .map { (it.completedAt - it.createdAt).coerceAtLeast(0L) / HOUR_MS }
+
+    if (completedDurations.isEmpty()) return 0
+    return completedDurations.average().toInt()
+}
+
+private fun mostSuccessfulGoalType(goals: List<Goal>): String {
+    return goals
+        .groupBy { it.goalType }
+        .maxByOrNull { it.value.size }
+        ?.key
+        ?.name
+        ?: "NONE"
+}
+
 private fun eventTypeLabel(type: String): String {
     return type.lowercase()
         .split("_")
@@ -612,3 +667,4 @@ private fun eventTypeLabel(type: String): String {
 }
 
 private const val DAY_MS = 24 * 60 * 60 * 1000L
+private const val HOUR_MS = 60 * 60 * 1000L

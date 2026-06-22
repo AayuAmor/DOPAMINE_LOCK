@@ -89,6 +89,11 @@ fun AnalyticsScreen(
     averageDailyDisciplineGain: Int = 0,
     mostValuableHabit: String = "No discipline events yet",
     scoreGrowthTrend: List<Float> = emptyList(),
+    goalsCreated: Int = 0,
+    goalsCompleted: Int = 0,
+    goalCompletionRate: Int = 0,
+    averageGoalCompletionTimeHours: Int = 0,
+    mostSuccessfulGoalType: String = "NONE",
     onNavigate: (String) -> Unit,
     onOpenStreakCalendar: () -> Unit = {},
     onOpenDisciplineScore: () -> Unit = {}
@@ -161,6 +166,38 @@ fun AnalyticsScreen(
                     averageDailyGain = averageDailyDisciplineGain,
                     mostValuableHabit = mostValuableHabit,
                     onClick = onOpenDisciplineScore
+                )
+                Spacer(modifier = Modifier.height(28.dp))
+            }
+
+            item {
+                SectionHeader(title = "Goal Performance")
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    DashboardStatCard(
+                        value = goalsCreated.toString(),
+                        label = "Goals",
+                        modifier = Modifier.weight(1f)
+                    )
+                    DashboardStatCard(
+                        value = goalsCompleted.toString(),
+                        label = "Done",
+                        modifier = Modifier.weight(1f)
+                    )
+                    DashboardStatCard(
+                        value = goalCompletionRate.toString(),
+                        label = "Goal %",
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Avg completion: ${averageGoalCompletionTimeHours}h · Best type: $mostSuccessfulGoalType",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = DopamineGrey
                 )
                 Spacer(modifier = Modifier.height(28.dp))
             }

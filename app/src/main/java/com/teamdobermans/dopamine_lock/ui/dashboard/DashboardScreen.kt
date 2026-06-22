@@ -41,6 +41,7 @@ import com.teamdobermans.dopamine_lock.model.FocusSession
 import com.teamdobermans.dopamine_lock.model.DisciplineEvent
 import com.teamdobermans.dopamine_lock.model.DisciplineRank
 import com.teamdobermans.dopamine_lock.model.User
+import com.teamdobermans.dopamine_lock.model.Goal
 import com.teamdobermans.dopamine_lock.navigation.Screen
 import com.teamdobermans.dopamine_lock.ui.components.BottomNavigationBar
 import com.teamdobermans.dopamine_lock.ui.components.ButtonVariant
@@ -73,6 +74,9 @@ fun DashboardScreen(
     disciplineScore: Int = user?.disciplineScore ?: 0,
     disciplineRank: DisciplineRank = DisciplineRank.D,
     recentDisciplineEvent: DisciplineEvent? = null,
+    dailyGoals: List<Goal> = emptyList(),
+    weeklyGoals: List<Goal> = emptyList(),
+    monthlyGoals: List<Goal> = emptyList(),
     todayFocusHours: Double = 0.0,
     todaySessionCount: Int = 0,
     onNavigate: (String) -> Unit,
@@ -81,6 +85,10 @@ fun DashboardScreen(
     onOpenStreakCalendar: () -> Unit = { onNavigate(Screen.Analytics.route) },
     onOpenGoalTracking: () -> Unit = { onNavigate(Screen.Analytics.route) }
 ) {
+    val todayGoal = dailyGoals.firstOrNull { !it.completed } ?: dailyGoals.firstOrNull()
+    val todayGoalCurrent = todayGoal?.currentProgress?.toFloat() ?: todayFocusHours.toFloat()
+    val todayGoalTarget = todayGoal?.targetValue?.toFloat()?.coerceAtLeast(1f) ?: 6f
+
     Scaffold(
         containerColor = Color.Black,
         bottomBar = {
@@ -142,10 +150,10 @@ fun DashboardScreen(
                 SectionHeader(title = "Today's Goal")
                 Spacer(modifier = Modifier.height(12.dp))
                 FocusProgressCard(
-                    title = recentDisciplineEvent?.description ?: "Daily Focus Goal",
-                    current = todayFocusHours.toFloat(),
-                    total = 6f,
-                    unit = if (recentDisciplineEvent == null) "hours" else "discipline",
+                    title = todayGoal?.title ?: "Daily Focus Goal",
+                    current = todayGoalCurrent,
+                    total = todayGoalTarget,
+                    unit = todayGoal?.unit?.name?.lowercase() ?: "hours",
                     onClick = onOpenGoalTracking
                 )
                 Spacer(modifier = Modifier.height(24.dp))

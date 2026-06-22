@@ -9,6 +9,7 @@ import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
 import com.teamdobermans.dopamine_lock.model.DisciplineEventType
+import com.teamdobermans.dopamine_lock.model.GoalUnit
 import com.teamdobermans.dopamine_lock.model.Mission
 import com.teamdobermans.dopamine_lock.model.MissionStatus
 import kotlinx.coroutines.channels.awaitClose
@@ -22,7 +23,8 @@ class MissionRepositoryImpl(
     database: FirebaseDatabase,
     private val userRepository: UserRepository,
     private val streakRepository: StreakRepository? = null,
-    private val disciplineRepository: DisciplineRepository? = null
+    private val disciplineRepository: DisciplineRepository? = null,
+    private val goalRepository: GoalRepository? = null
 ) : MissionRepository {
     private val missionsRef: DatabaseReference = database.reference.child(MISSIONS_PATH)
 
@@ -168,6 +170,9 @@ class MissionRepositoryImpl(
         missionRef(uid, missionId).setValue(updated).await()
 
         applyDisciplineEvent(updated)
+        if (updated.status == MissionStatus.COMPLETED) {
+            goalRepository?.updateProgress(GoalUnit.MISSIONS, 1)
+        }
 
         streakRepository?.evaluateToday()
         return updated

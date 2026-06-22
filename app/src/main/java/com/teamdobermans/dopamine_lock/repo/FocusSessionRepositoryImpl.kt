@@ -10,6 +10,7 @@ import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
 import com.teamdobermans.dopamine_lock.model.DisciplineEventType
 import com.teamdobermans.dopamine_lock.model.FocusSession
+import com.teamdobermans.dopamine_lock.model.GoalUnit
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -21,7 +22,8 @@ class FocusSessionRepositoryImpl(
     database: FirebaseDatabase,
     private val userRepository: UserRepository,
     private val streakRepository: StreakRepository? = null,
-    private val disciplineRepository: DisciplineRepository? = null
+    private val disciplineRepository: DisciplineRepository? = null,
+    private val goalRepository: GoalRepository? = null
 ) : FocusSessionRepository {
     private val sessionsRef: DatabaseReference = database.reference.child(SESSIONS_PATH)
 
@@ -78,6 +80,11 @@ class FocusSessionRepositoryImpl(
                 relatedSessionId = sessionId
             )
         }
+        val completedHours = (elapsedSeconds / SECONDS_PER_HOUR).toInt()
+        if (completedHours > 0) {
+            goalRepository?.updateProgress(GoalUnit.HOURS, completedHours)
+        }
+        goalRepository?.updateProgress(GoalUnit.SESSIONS, 1)
         streakRepository?.evaluateToday()
         updated
     }

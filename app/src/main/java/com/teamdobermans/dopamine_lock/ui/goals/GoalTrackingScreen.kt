@@ -34,6 +34,9 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.teamdobermans.dopamine_lock.model.Goal
+import com.teamdobermans.dopamine_lock.model.GoalType
+import com.teamdobermans.dopamine_lock.model.GoalUnit
 import com.teamdobermans.dopamine_lock.navigation.Screen
 import com.teamdobermans.dopamine_lock.ui.components.BottomNavigationBar
 import com.teamdobermans.dopamine_lock.ui.components.ButtonVariant
@@ -67,69 +70,32 @@ private data class GoalItem(
 
 private val goalFilters = listOf("All", "Daily", "Weekly", "Monthly", "Completed")
 
-private val mockGoals = listOf(
-    GoalItem(
-        id = "deep-work-hours",
-        title = "Deep Work Hours",
-        category = "Focus",
-        type = "Monthly",
-        target = "100h monthly",
-        progressPercent = 73,
-        status = "On Track",
-        deadline = "June 30, 2026",
-        currentProgress = "73h",
-        remaining = "27h",
-        bestDay = "Friday",
-        suggestedAction = "Complete one 90-minute mission today"
-    ),
-    GoalItem(
-        id = "study-sessions",
-        title = "Study Sessions",
-        category = "Study",
-        type = "Monthly",
-        target = "40 sessions monthly",
-        progressPercent = 65,
-        status = "Needs Push",
-        deadline = "June 30, 2026",
-        currentProgress = "26 sessions",
-        remaining = "14 sessions",
-        bestDay = "Tuesday",
-        suggestedAction = "Schedule two short study missions"
-    ),
-    GoalItem(
-        id = "no-abandon",
-        title = "No-Abandon Missions",
-        category = "Discipline",
-        type = "Weekly",
-        target = "20 missions",
-        progressPercent = 85,
-        status = "Strong",
-        deadline = "June 28, 2026",
-        currentProgress = "17 missions",
-        remaining = "3 missions",
-        bestDay = "Monday",
-        suggestedAction = "Protect the next mission from interruption"
-    )
-)
-
 @Composable
 fun GoalTrackingScreen(
     currentRoute: String = Screen.Dashboard.route,
+    goals: List<Goal> = emptyList(),
+    dailyGoals: List<Goal> = emptyList(),
+    weeklyGoals: List<Goal> = emptyList(),
+    monthlyGoals: List<Goal> = emptyList(),
+    activeGoals: List<Goal> = emptyList(),
+    completedGoals: List<Goal> = emptyList(),
+    onCreateGoal: (String, String, GoalType, Int, GoalUnit) -> Unit = { _, _, _, _, _ -> },
     onNavigate: (String) -> Unit,
     onStartMission: () -> Unit
 ) {
     var selectedFilter by remember { mutableStateOf("All") }
-    var selectedGoalId by remember { mutableStateOf(mockGoals.first().id) }
+    var selectedGoalId by remember { mutableStateOf("") }
     var showCreateGoal by remember { mutableStateOf(false) }
 
-    val visibleGoals = remember(selectedFilter) {
+    val goalItems = remember(goals) { goals.map { it.toGoalItem() } }
+    val visibleGoals = remember(selectedFilter, goalItems) {
         when (selectedFilter) {
-            "Completed" -> mockGoals.filter { it.completed }
-            "All" -> mockGoals
-            else -> mockGoals.filter { it.type == selectedFilter }
+            "Completed" -> goalItems.filter { it.completed }
+            "All" -> goalItems
+            else -> goalItems.filter { it.type == selectedFilter }
         }
     }
-    val selectedGoal = mockGoals.firstOrNull { it.id == selectedGoalId } ?: mockGoals.first()
+    val selectedGoal = goalItems.firstOrNull { it.id == selectedGoalId } ?: goalItems.firstOrNull()
 
     Scaffold(
         containerColor = DopamineBlack,
@@ -150,7 +116,13 @@ fun GoalTrackingScreen(
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             item { GoalTrackingHeader() }
-            item { GoalSummaryCards() }
+            item {
+                GoalSummaryCards(
+                    dailyGoals = dailyGoals,
+                    weeklyGoals = weeklyGoals,
+                    monthlyGoals = monthlyGoals
+                )
+            }
             item {
                 GoalFilterChips(
                     selectedFilter = selectedFilter,
@@ -164,8 +136,10 @@ fun GoalTrackingScreen(
                     onViewDetails = { selectedGoalId = it }
                 )
             }
-            item { SelectedGoalPreviewCard(goal = selectedGoal) }
-            item { GoalMilestoneCard() }
+            selectedGoal?.let { goal ->
+                item { SelectedGoalPreviewCard(goal = goal) }
+                item { GoalMilestoneCard(goal = goal) }
+            }
             item {
                 GoalTrackingActions(
                     onCreateGoal = { showCreateGoal = true },
@@ -177,7 +151,10 @@ fun GoalTrackingScreen(
 
     if (showCreateGoal) {
         CreateGoalBottomSheet(
-            onSave = { showCreateGoal = false },
+            onSave = { title, description, goalType, targetValue, unit ->
+                onCreateGoal(title, description, goalType, targetValue, unit)
+                showCreateGoal = false
+            },
             onCancel = { showCreateGoal = false }
         )
     }
@@ -204,14 +181,18 @@ private fun GoalTrackingHeader() {
 }
 
 @Composable
-private fun GoalSummaryCards() {
+private fun GoalSummaryCards(
+    dailyGoals: List<Goal>,
+    weeklyGoals: List<Goal>,
+    monthlyGoals: List<Goal>
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        GoalSummaryCard("4 / 6h", "Daily Goal", Modifier.weight(1f))
-        GoalSummaryCard("21 / 30h", "Weekly Goal", Modifier.weight(1f))
-        GoalSummaryCard("73 / 100h", "Monthly Goal", Modifier.weight(1f))
+        GoalSummaryCard(goalSummary(dailyGoals), "Daily Goal", Modifier.weight(1f))
+        GoalSummaryCard(goalSummary(weeklyGoals), "Weekly Goal", Modifier.weight(1f))
+        GoalSummaryCard(goalSummary(monthlyGoals), "Monthly Goal", Modifier.weight(1f))
     }
 }
 
@@ -322,20 +303,20 @@ private fun SelectedGoalPreviewCard(goal: GoalItem) {
 }
 
 @Composable
-private fun GoalMilestoneCard() {
+private fun GoalMilestoneCard(goal: GoalItem) {
     DopamineCard {
         SectionLabel("NEXT MILESTONE")
         Spacer(modifier = Modifier.height(10.dp))
-        Text("80% Monthly Focus Goal", style = MaterialTheme.typography.titleLarge, color = DopamineWhite, fontWeight = FontWeight.Bold)
+        Text(goal.title, style = MaterialTheme.typography.titleLarge, color = DopamineWhite, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(8.dp))
-        Text("Reward: Discipline XP +50", style = MaterialTheme.typography.bodyMedium, color = DopamineGrey)
+        Text("Reward: Discipline XP on completion", style = MaterialTheme.typography.bodyMedium, color = DopamineGrey)
         Spacer(modifier = Modifier.height(12.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("Progress", style = MaterialTheme.typography.bodySmall, color = DopamineGrey)
-            Text("73 / 80", style = MaterialTheme.typography.labelMedium, color = DopamineWhite, fontWeight = FontWeight.Bold)
+            Text(goal.currentProgress, style = MaterialTheme.typography.labelMedium, color = DopamineWhite, fontWeight = FontWeight.Bold)
         }
         Spacer(modifier = Modifier.height(8.dp))
-        ProgressBar(73f / 80f)
+        ProgressBar(goal.progressPercent / 100f)
     }
 }
 
@@ -374,13 +355,14 @@ private fun GoalEmptyState() {
 
 @Composable
 private fun CreateGoalBottomSheet(
-    onSave: () -> Unit,
+    onSave: (String, String, GoalType, Int, GoalUnit) -> Unit,
     onCancel: () -> Unit
 ) {
     var goalName by remember { mutableStateOf("") }
     var targetAmount by remember { mutableStateOf("") }
-    var deadline by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf("") }
+    var goalType by remember { mutableStateOf("DAILY") }
+    var goalUnit by remember { mutableStateOf("HOURS") }
+    var description by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onCancel,
@@ -392,14 +374,21 @@ private fun CreateGoalBottomSheet(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 DopamineTextField(value = goalName, onValueChange = { goalName = it }, label = "Goal name", placeholder = "Deep Work Hours")
                 DopamineTextField(value = targetAmount, onValueChange = { targetAmount = it }, label = "Target amount", placeholder = "100")
-                DopamineTextField(value = deadline, onValueChange = { deadline = it }, label = "Deadline", placeholder = "June 30, 2026")
-                DopamineTextField(value = category, onValueChange = { category = it }, label = "Category", placeholder = "Focus", imeAction = ImeAction.Done)
-                Text("TYPE: DAILY / WEEKLY / MONTHLY", style = MaterialTheme.typography.labelSmall, color = DopamineDim, letterSpacing = 1.sp)
-                Text("UNIT: HOURS / SESSIONS / MISSIONS", style = MaterialTheme.typography.labelSmall, color = DopamineDim, letterSpacing = 1.sp)
+                DopamineTextField(value = goalType, onValueChange = { goalType = it }, label = "Type", placeholder = "DAILY / WEEKLY / MONTHLY")
+                DopamineTextField(value = goalUnit, onValueChange = { goalUnit = it }, label = "Unit", placeholder = "HOURS / SESSIONS / MISSIONS")
+                DopamineTextField(value = description, onValueChange = { description = it }, label = "Description", placeholder = "Focus", imeAction = ImeAction.Done)
             }
         },
         confirmButton = {
-            DialogAction("SAVE GOAL", onSave)
+            DialogAction("SAVE GOAL") {
+                onSave(
+                    goalName,
+                    description,
+                    goalType.toGoalType(),
+                    targetAmount.toIntOrNull() ?: 0,
+                    goalUnit.toGoalUnit()
+                )
+            }
         },
         dismissButton = {
             DialogAction("CANCEL", onCancel)
@@ -514,6 +503,61 @@ private fun SectionLabel(text: String) {
         letterSpacing = 2.sp,
         fontWeight = FontWeight.Bold
     )
+}
+
+private fun Goal.toGoalItem(): GoalItem {
+    val progressPercent = if (targetValue <= 0) {
+        0
+    } else {
+        ((currentProgress.toFloat() / targetValue.toFloat()) * 100).toInt().coerceIn(0, 100)
+    }
+    val unitLabel = unit.name.lowercase()
+    val remainingValue = (targetValue - currentProgress).coerceAtLeast(0)
+
+    return GoalItem(
+        id = goalId,
+        title = title.ifBlank { "${goalType.name.lowercase().replaceFirstChar { it.uppercase() }} Goal" },
+        category = description.ifBlank { unitLabel },
+        type = goalType.name.lowercase().replaceFirstChar { it.uppercase() },
+        target = "$targetValue $unitLabel",
+        progressPercent = progressPercent,
+        status = if (completed) "Completed" else if (progressPercent >= 75) "Strong" else "Active",
+        deadline = if (endDate > 0L) "Ends ${endDate.toDateLabel()}" else "Current period",
+        currentProgress = "$currentProgress / $targetValue $unitLabel",
+        remaining = "$remainingValue $unitLabel",
+        bestDay = goalType.name.lowercase().replaceFirstChar { it.uppercase() },
+        suggestedAction = "Complete ${unit.name.lowercase()} to move this goal forward",
+        completed = completed
+    )
+}
+
+private fun goalSummary(goals: List<Goal>): String {
+    val goal = goals.firstOrNull { !it.completed } ?: goals.firstOrNull() ?: return "0 / 0"
+    return "${goal.currentProgress} / ${goal.targetValue}${goal.unit.shortLabel()}"
+}
+
+private fun GoalUnit.shortLabel(): String {
+    return when (this) {
+        GoalUnit.HOURS -> "h"
+        GoalUnit.MISSIONS -> "m"
+        GoalUnit.SESSIONS -> "s"
+    }
+}
+
+private fun String.toGoalType(): GoalType {
+    return GoalType.entries.firstOrNull { it.name.equals(trim(), ignoreCase = true) } ?: GoalType.DAILY
+}
+
+private fun String.toGoalUnit(): GoalUnit {
+    return GoalUnit.entries.firstOrNull { it.name.equals(trim(), ignoreCase = true) } ?: GoalUnit.HOURS
+}
+
+private fun Long.toDateLabel(): String {
+    if (this <= 0L) return "current period"
+    val calendar = java.util.Calendar.getInstance().apply { timeInMillis = this@toDateLabel }
+    val month = calendar.getDisplayName(java.util.Calendar.MONTH, java.util.Calendar.SHORT, java.util.Locale.getDefault())
+    val day = calendar.get(java.util.Calendar.DAY_OF_MONTH)
+    return "$month $day"
 }
 
 @Preview(showBackground = true, backgroundColor = 0xFF000000)
