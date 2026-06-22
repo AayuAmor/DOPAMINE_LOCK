@@ -25,7 +25,8 @@ class MissionRepositoryImpl(
     private val streakRepository: StreakRepository? = null,
     private val disciplineRepository: DisciplineRepository? = null,
     private val goalRepository: GoalRepository? = null,
-    private val notificationRepository: NotificationRepository? = null
+    private val notificationRepository: NotificationRepository? = null,
+    private val enforcementRepository: EnforcementRepository? = null
 ) : MissionRepository {
     private val missionsRef: DatabaseReference = database.reference.child(MISSIONS_PATH)
 
@@ -67,6 +68,13 @@ class MissionRepositoryImpl(
         )
         missionRef(uid, missionId).setValue(updated).await()
         notificationRepository?.cancelMissionReminder(missionId)
+        enforcementRepository?.startEnforcement(
+            missionId = updated.missionId,
+            missionTitle = updated.title,
+            blockedApps = updated.blockedApps,
+            startedAt = updated.startedAt,
+            durationMinutes = updated.durationMinutes
+        )
         updated
     }
 
@@ -171,6 +179,7 @@ class MissionRepositoryImpl(
             disciplinePenalty = penalty
         )
         missionRef(uid, missionId).setValue(updated).await()
+        enforcementRepository?.stopEnforcement()
 
         applyDisciplineEvent(updated)
         if (updated.status == MissionStatus.COMPLETED) {

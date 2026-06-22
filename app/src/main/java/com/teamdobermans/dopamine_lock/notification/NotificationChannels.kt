@@ -5,4 +5,5 @@ object NotificationChannels {
     const val GOALS_CHANNEL = "goals_channel"
     const val MISSIONS_CHANNEL = "missions_channel"
     const val STREAKS_CHANNEL = "streaks_channel"
+    const val ENFORCEMENT_CHANNEL = "enforcement_channel"
 }

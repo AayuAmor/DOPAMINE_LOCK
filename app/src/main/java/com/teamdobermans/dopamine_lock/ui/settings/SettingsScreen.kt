@@ -39,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.teamdobermans.dopamine_lock.model.EnforcementSettings
 import com.teamdobermans.dopamine_lock.model.NotificationPreferences
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,6 +60,7 @@ import com.teamdobermans.dopamine_lock.ui.theme.DopamineError
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineGrey
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineSurface
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineWhite
+import com.teamdobermans.dopamine_lock.viewModel.EnforcementUiState
 
 @Composable
 fun SettingsScreen(
@@ -66,11 +68,17 @@ fun SettingsScreen(
     user: User? = null,
     notificationPreferences: NotificationPreferences = NotificationPreferences(),
     onNotificationPreferencesChange: (NotificationPreferences) -> Unit = {},
+    enforcementUiState: EnforcementUiState = EnforcementUiState(),
+    onEnforcementSettingsChange: (EnforcementSettings) -> Unit = {},
+    onOpenAccessibilitySettings: () -> Unit = {},
+    onOpenUsageAccessSettings: () -> Unit = {},
+    onOpenNotificationSettings: () -> Unit = {},
     onNavigate: (String) -> Unit,
     onNavigateToBlockedApps: () -> Unit = {},
     onLogout: () -> Unit
 ) {
-    var strictModeEnabled by remember { mutableStateOf(false) }
+    val enforcementSettings = enforcementUiState.settings
+    val permissionStatus = enforcementUiState.permissionStatus
     val notificationsEnabled = notificationPreferences.dailyGoalReminderEnabled ||
         notificationPreferences.streakReminderEnabled ||
         notificationPreferences.goalReminderEnabled ||
@@ -148,8 +156,10 @@ fun SettingsScreen(
                         icon = Icons.Filled.Timer,
                         label = "Strict Focus Mode",
                         subtitle = "Prevent early session exit",
-                        checked = strictModeEnabled,
-                        onCheckedChange = { strictModeEnabled = it }
+                        checked = enforcementSettings.strictModeEnabled,
+                        onCheckedChange = {
+                            onEnforcementSettingsChange(enforcementSettings.copy(strictModeEnabled = it))
+                        }
                     )
                     SettingsDivider()
                     SettingsNavigationRow(
@@ -171,6 +181,64 @@ fun SettingsScreen(
                         label = "Blocked Apps",
                         trailing = "Configure",
                         onClick = onNavigateToBlockedApps
+                    )
+                }
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(24.dp))
+                SettingsSectionLabel("ENFORCEMENT")
+                Spacer(modifier = Modifier.height(8.dp))
+                SettingsGroup {
+                    SettingsToggleRow(
+                        icon = Icons.Filled.Lock,
+                        label = "Enable Blocking",
+                        subtitle = "Block selected apps during active missions",
+                        checked = enforcementSettings.blockingEnabled,
+                        onCheckedChange = {
+                            onEnforcementSettingsChange(enforcementSettings.copy(blockingEnabled = it))
+                        }
+                    )
+                    SettingsDivider()
+                    SettingsToggleRow(
+                        icon = Icons.Filled.Lock,
+                        label = "Overlay Protection",
+                        subtitle = "Show the blocked overlay when a locked app opens",
+                        checked = enforcementSettings.overlayProtectionEnabled,
+                        onCheckedChange = {
+                            onEnforcementSettingsChange(enforcementSettings.copy(overlayProtectionEnabled = it))
+                        }
+                    )
+                    SettingsDivider()
+                    SettingsToggleRow(
+                        icon = Icons.Filled.Timer,
+                        label = "Foreground Service",
+                        subtitle = "Keep mission enforcement alive",
+                        checked = enforcementSettings.foregroundServiceEnabled,
+                        onCheckedChange = {
+                            onEnforcementSettingsChange(enforcementSettings.copy(foregroundServiceEnabled = it))
+                        }
+                    )
+                    SettingsDivider()
+                    SettingsNavigationRow(
+                        icon = Icons.Filled.Lock,
+                        label = "Accessibility Permission",
+                        trailing = if (permissionStatus.accessibilityEnabled) "Enabled" else "Required",
+                        onClick = onOpenAccessibilitySettings
+                    )
+                    SettingsDivider()
+                    SettingsNavigationRow(
+                        icon = Icons.Filled.Timer,
+                        label = "Usage Access",
+                        trailing = if (permissionStatus.usageAccessEnabled) "Enabled" else "Fallback",
+                        onClick = onOpenUsageAccessSettings
+                    )
+                    SettingsDivider()
+                    SettingsNavigationRow(
+                        icon = Icons.Filled.Notifications,
+                        label = "Notification Permission",
+                        trailing = if (permissionStatus.notificationEnabled) "Enabled" else "Required",
+                        onClick = onOpenNotificationSettings
                     )
                 }
             }

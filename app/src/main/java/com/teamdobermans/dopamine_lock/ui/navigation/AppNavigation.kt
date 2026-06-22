@@ -20,11 +20,13 @@ import androidx.navigation.compose.rememberNavController
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.teamdobermans.dopamine_lock.BuildConfig
+import com.teamdobermans.dopamine_lock.enforcement.PermissionManager
 import com.teamdobermans.dopamine_lock.model.DisciplineEvent
 import com.teamdobermans.dopamine_lock.model.Goal
 import com.teamdobermans.dopamine_lock.repo.AnalyticsRepositoryImpl
 import com.teamdobermans.dopamine_lock.repo.AuthRepositoryImpl
 import com.teamdobermans.dopamine_lock.repo.DisciplineRepositoryImpl
+import com.teamdobermans.dopamine_lock.repo.EnforcementRepositoryImpl
 import com.teamdobermans.dopamine_lock.repo.FocusSessionRepositoryImpl
 import com.teamdobermans.dopamine_lock.repo.GoalRepositoryImpl
 import com.teamdobermans.dopamine_lock.repo.MissionRepositoryImpl
@@ -58,6 +60,8 @@ import com.teamdobermans.dopamine_lock.viewModel.AuthViewModelFactory
 import com.teamdobermans.dopamine_lock.ui.auth.AuthProvider
 import com.teamdobermans.dopamine_lock.viewModel.DisciplineViewModel
 import com.teamdobermans.dopamine_lock.viewModel.DisciplineViewModelFactory
+import com.teamdobermans.dopamine_lock.viewModel.EnforcementViewModel
+import com.teamdobermans.dopamine_lock.viewModel.EnforcementViewModelFactory
 import com.teamdobermans.dopamine_lock.viewModel.FocusSessionViewModel
 import com.teamdobermans.dopamine_lock.viewModel.FocusSessionViewModelFactory
 import com.teamdobermans.dopamine_lock.viewModel.GoalViewModel
@@ -71,7 +75,10 @@ import com.teamdobermans.dopamine_lock.viewModel.UserViewModelFactory
 import kotlinx.coroutines.launch
 
 @Composable
-fun AppNavigation() {
+fun AppNavigation(
+    externalDestination: String? = null,
+    onExternalDestinationConsumed: () -> Unit = {}
+) {
     val navController = rememberNavController()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -101,6 +108,8 @@ fun AppNavigation() {
         userRepository = userRepository
     )
     val notificationRepository = NotificationRepositoryImpl(context)
+    val enforcementRepository = EnforcementRepositoryImpl(context)
+    val permissionManager = PermissionManager(context)
     val goalRepository = GoalRepositoryImpl(
         auth = FirebaseProvider.auth,
         database = FirebaseProvider.database,
@@ -129,7 +138,8 @@ fun AppNavigation() {
         streakRepository = streakRepository,
         disciplineRepository = disciplineRepository,
         goalRepository = goalRepository,
-        notificationRepository = notificationRepository
+        notificationRepository = notificationRepository,
+        enforcementRepository = enforcementRepository
     )
     val focusSessionViewModel: FocusSessionViewModel = viewModel(
         factory = FocusSessionViewModelFactory(focusSessionRepository)
@@ -158,6 +168,12 @@ fun AppNavigation() {
     val notificationViewModel: NotificationViewModel = viewModel(
         factory = NotificationViewModelFactory(notificationRepository)
     )
+    val enforcementViewModel: EnforcementViewModel = viewModel(
+        factory = EnforcementViewModelFactory(
+            repository = enforcementRepository,
+            permissionManager = permissionManager
+        )
+    )
     val authUiState by authViewModel.uiState.collectAsState()
     val userUiState by userViewModel.uiState.collectAsState()
     val focusSessionUiState by focusSessionViewModel.uiState.collectAsState()
@@ -166,6 +182,7 @@ fun AppNavigation() {
     val goalUiState by goalViewModel.uiState.collectAsState()
     val analyticsUiState by analyticsViewModel.uiState.collectAsState()
     val notificationUiState by notificationViewModel.uiState.collectAsState()
+    val enforcementUiState by enforcementViewModel.uiState.collectAsState()
     val currentBackStackEntry = navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry.value?.destination?.route ?: Screen.Splash.route
 
@@ -187,6 +204,39 @@ fun AppNavigation() {
 
     LaunchedEffect(Unit) {
         authViewModel.checkAuthState()
+    }
+
+    LaunchedEffect(externalDestination, authUiState.isAuthenticated) {
+        val destination = externalDestination ?: return@LaunchedEffect
+        if (!authUiState.isAuthenticated) return@LaunchedEffect
+
+        when (destination) {
+            Screen.BlockedAppOverlay.route,
+            "blocked_app_overlay" -> navController.navigate(Screen.BlockedAppOverlay.route) {
+                launchSingleTop = true
+            }
+            Screen.Mission.route,
+            "mission" -> navController.navigate(Screen.Mission.route) {
+                launchSingleTop = true
+            }
+            Screen.Dashboard.route,
+            "dashboard" -> navController.navigate(Screen.Dashboard.route) {
+                launchSingleTop = true
+            }
+            Screen.CreateMission.route,
+            "create_mission" -> navController.navigate(Screen.CreateMission.route) {
+                launchSingleTop = true
+            }
+            Screen.GoalTracking.route,
+            "goal_tracking" -> navController.navigate(Screen.GoalTracking.route) {
+                launchSingleTop = true
+            }
+            Screen.DisciplineScore.route,
+            "discipline_score" -> navController.navigate(Screen.DisciplineScore.route) {
+                launchSingleTop = true
+            }
+        }
+        onExternalDestinationConsumed()
     }
 
     LaunchedEffect(authUiState.hasCheckedAuthState, authUiState.isAuthenticated, currentRoute) {
@@ -219,6 +269,7 @@ fun AppNavigation() {
             analyticsViewModel.loadAnalytics()
             notificationViewModel.loadPreferences()
             notificationViewModel.scheduleNotifications()
+            enforcementViewModel.checkPermissions()
         } else {
             userViewModel.clearUser()
             focusSessionViewModel.clear()
@@ -227,6 +278,7 @@ fun AppNavigation() {
             goalViewModel.clear()
             analyticsViewModel.clear()
             notificationViewModel.clear()
+            enforcementViewModel.stopEnforcement()
         }
     }
 
@@ -508,7 +560,14 @@ fun AppNavigation() {
         }
 
         composable(Screen.BlockedAppOverlay.route) {
+            val enforcementState = enforcementUiState.activeMission
+            val blockedPackage = enforcementState.lastBlockedPackage
+            val blockedAppName = resolveAppName(context, blockedPackage)
             BlockedAppOverlayScreen(
+                blockedAppName = blockedAppName,
+                missionTitle = enforcementState.missionTitle.ifBlank { missionUiState.activeMission?.title ?: "Mission Active" },
+                remainingText = remainingMissionText(enforcementState.startedAt, enforcementState.durationMinutes),
+                blockedAppsCount = enforcementState.blockedApps.size,
                 onReturnToMission = {
                     navController.navigate(Screen.Mission.route)
                 },
@@ -516,7 +575,14 @@ fun AppNavigation() {
                     navController.navigate(Screen.Mission.route)
                 },
                 onAbandonMission = {
-                    navController.navigate(Screen.Focus.route)
+                    (missionUiState.activeMission?.missionId ?: enforcementState.missionId)
+                        .takeIf { it.isNotBlank() }
+                        ?.let { missionId ->
+                        missionViewModel.abandonMission(missionId)
+                    }
+                    navController.navigate(Screen.Dashboard.route) {
+                        popUpTo(Screen.Dashboard.route) { inclusive = false }
+                    }
                 }
             )
         }
@@ -635,6 +701,17 @@ fun AppNavigation() {
                 user = userUiState.user,
                 notificationPreferences = notificationUiState.preferences,
                 onNotificationPreferencesChange = notificationViewModel::updatePreferences,
+                enforcementUiState = enforcementUiState,
+                onEnforcementSettingsChange = enforcementViewModel::updateSettings,
+                onOpenAccessibilitySettings = {
+                    context.startActivity(permissionManager.accessibilitySettingsIntent())
+                },
+                onOpenUsageAccessSettings = {
+                    context.startActivity(permissionManager.usageAccessSettingsIntent())
+                },
+                onOpenNotificationSettings = {
+                    context.startActivity(permissionManager.appNotificationSettingsIntent())
+                },
                 onNavigate = ::navigateBottomNav,
                 onNavigateToBlockedApps = {
                     navController.navigate(Screen.BlockedApps.route)
@@ -661,6 +738,22 @@ private fun averageDailyDisciplineGain(events: List<DisciplineEvent>): Int {
     if (events.isEmpty()) return 0
     val dayCount = events.map { it.createdAt / DAY_MS }.distinct().size.coerceAtLeast(1)
     return events.sumOf { it.points }.coerceAtLeast(0) / dayCount
+}
+
+private fun resolveAppName(context: android.content.Context, packageName: String): String {
+    if (packageName.isBlank()) return "Blocked App"
+    return runCatching {
+        val appInfo = context.packageManager.getApplicationInfo(packageName, 0)
+        context.packageManager.getApplicationLabel(appInfo).toString()
+    }.getOrDefault(packageName)
+}
+
+private fun remainingMissionText(startedAt: Long, durationMinutes: Int): String {
+    if (startedAt <= 0L || durationMinutes <= 0) return "Return to your mission."
+    val remainingMs = (durationMinutes * 60_000L - (System.currentTimeMillis() - startedAt)).coerceAtLeast(0L)
+    val minutes = remainingMs / 60_000L
+    val seconds = (remainingMs % 60_000L) / 1_000L
+    return "%02d:%02d".format(minutes, seconds)
 }
 
 private fun mostValuableHabit(events: List<DisciplineEvent>): String {

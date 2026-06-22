@@ -44,6 +44,10 @@ import com.teamdobermans.dopamine_lock.ui.theme.DopamineWhite
 
 @Composable
 fun BlockedAppOverlayScreen(
+    blockedAppName: String = "Instagram",
+    missionTitle: String = "Deep Work Sprint",
+    remainingText: String = "18:42",
+    blockedAppsCount: Int = 5,
     onReturnToMission: () -> Unit,
     onViewMissionRules: () -> Unit,
     onAbandonMission: () -> Unit
@@ -58,8 +62,14 @@ fun BlockedAppOverlayScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         item { BlockedAppOverlayHeader() }
-        item { BlockedApplicationCard() }
-        item { MissionStatusCard() }
+        item { BlockedApplicationCard(blockedAppName = blockedAppName) }
+        item {
+            MissionStatusCard(
+                missionTitle = missionTitle,
+                remainingText = remainingText,
+                blockedAppsCount = blockedAppsCount
+            )
+        }
         item { DisciplineWarningCard() }
         item {
             BlockedOverlayActions(
@@ -124,7 +134,7 @@ private fun BlockedAppOverlayHeader() {
 }
 
 @Composable
-private fun BlockedApplicationCard() {
+private fun BlockedApplicationCard(blockedAppName: String) {
     DopamineCard {
         SectionLabel("BLOCKED APPLICATION")
         Spacer(modifier = Modifier.height(14.dp))
@@ -137,7 +147,7 @@ private fun BlockedApplicationCard() {
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "I",
+                    text = blockedAppName.firstOrNull()?.uppercaseChar()?.toString() ?: "!",
                     style = MaterialTheme.typography.titleLarge,
                     color = DopamineWhite,
                     fontWeight = FontWeight.Bold
@@ -146,7 +156,7 @@ private fun BlockedApplicationCard() {
             Spacer(modifier = Modifier.size(14.dp))
             Column {
                 Text(
-                    text = "Instagram",
+                    text = blockedAppName,
                     style = MaterialTheme.typography.titleMedium,
                     color = DopamineWhite,
                     fontWeight = FontWeight.Bold
@@ -168,12 +178,16 @@ private fun BlockedApplicationCard() {
 }
 
 @Composable
-private fun MissionStatusCard() {
+private fun MissionStatusCard(
+    missionTitle: String,
+    remainingText: String,
+    blockedAppsCount: Int
+) {
     DopamineCard {
         SectionLabel("CURRENT MISSION")
         Spacer(modifier = Modifier.height(12.dp))
         Text(
-            text = "Deep Work Sprint",
+            text = missionTitle,
             style = MaterialTheme.typography.titleLarge,
             color = DopamineWhite,
             fontWeight = FontWeight.Bold
@@ -183,8 +197,8 @@ private fun MissionStatusCard() {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            StatusMetric(label = "REMAINING", value = "18:42")
-            StatusMetric(label = "APPS BLOCKED", value = "5")
+            StatusMetric(label = "REMAINING", value = remainingText)
+            StatusMetric(label = "APPS BLOCKED", value = blockedAppsCount.toString())
         }
         Spacer(modifier = Modifier.height(16.dp))
         MonochromeProgress(progress = 0.62f)

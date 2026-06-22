@@ -36,11 +36,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.teamdobermans.dopamine_lock.enforcement.InstalledAppsProvider
+import com.teamdobermans.dopamine_lock.repo.BlockedAppsRepositoryImpl
 import com.teamdobermans.dopamine_lock.ui.components.ButtonVariant
 import com.teamdobermans.dopamine_lock.ui.components.DopamineButton
 import com.teamdobermans.dopamine_lock.ui.components.DopamineCard
@@ -56,7 +59,6 @@ import com.teamdobermans.dopamine_lock.ui.theme.DopamineWhite
 
 private val missionTypes = listOf("Deep Work", "Study", "Coding", "Reading", "Writing", "Custom")
 private val sessionDurations = listOf(25, 45, 60, 90, 120)
-private val selectedAppsPreview = listOf("Instagram", "TikTok", "YouTube")
 private val missionRules = listOf(
     "No social media",
     "Stay focused",
@@ -78,10 +80,18 @@ fun CreateMissionScreen(
     ) -> Unit,
     onCancel: () -> Unit
 ) {
+    val context = LocalContext.current.applicationContext
+    val blockedAppsRepository = remember { BlockedAppsRepositoryImpl(context) }
+    val installedAppsProvider = remember { InstalledAppsProvider(context) }
     var missionName by remember { mutableStateOf("Deep Work Sprint") }
     var selectedMissionType by remember { mutableStateOf("Deep Work") }
     var selectedDuration by remember { mutableIntStateOf(90) }
     var missionGoal by remember { mutableStateOf("Finish DSA Notes") }
+    val selectedBlockedPackages = blockedAppsRepository.getBlockedApps().toList().sorted()
+    val selectedBlockedAppNames = remember(selectedBlockedPackages) {
+        val namesByPackage = installedAppsProvider.getInstalledApps().associate { it.id to it.name }
+        selectedBlockedPackages.map { packageName -> namesByPackage[packageName] ?: packageName }
+    }
 
     CreateMissionContent(
         missionName = missionName,
@@ -94,13 +104,14 @@ fun CreateMissionScreen(
         onMissionGoalChange = { missionGoal = it },
         onNavigateBack = onNavigateBack,
         onManageApps = onManageApps,
+        selectedApps = selectedBlockedAppNames,
         onStartMission = {
             onStartMission(
                 missionName.ifBlank { selectedMissionType },
                 missionGoal,
                 selectedMissionType,
                 selectedDuration,
-                selectedAppsPreview
+                selectedBlockedPackages
             )
         },
         onCancel = onCancel
@@ -119,6 +130,7 @@ private fun CreateMissionContent(
     onMissionGoalChange: (String) -> Unit,
     onNavigateBack: () -> Unit,
     onManageApps: () -> Unit,
+    selectedApps: List<String>,
     onStartMission: () -> Unit,
     onCancel: () -> Unit
 ) {
@@ -157,7 +169,7 @@ private fun CreateMissionContent(
 
         item {
             DistractionBlockingSection(
-                selectedApps = selectedAppsPreview,
+                selectedApps = selectedApps,
                 onManageApps = onManageApps
             )
         }
@@ -177,7 +189,7 @@ private fun CreateMissionContent(
             MissionPreviewCard(
                 mission = missionName.ifBlank { selectedMissionType },
                 duration = selectedDuration,
-                appsBlocked = selectedAppsPreview.size,
+                appsBlocked = selectedApps.size,
                 goal = missionGoal.ifBlank { "No goal set" }
             )
         }
@@ -517,6 +529,7 @@ private fun CreateMissionScreenPreview() {
             onMissionGoalChange = {},
             onNavigateBack = {},
             onManageApps = {},
+            selectedApps = listOf("Instagram", "TikTok", "YouTube"),
             onStartMission = {},
             onCancel = {}
         )

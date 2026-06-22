@@ -41,6 +41,11 @@ class DopamineNotificationManager(
                 NotificationChannels.STREAKS_CHANNEL,
                 "Streaks",
                 NotificationManager.IMPORTANCE_DEFAULT
+            ),
+            NotificationChannel(
+                NotificationChannels.ENFORCEMENT_CHANNEL,
+                "Mission Enforcement",
+                NotificationManager.IMPORTANCE_LOW
             )
         )
 

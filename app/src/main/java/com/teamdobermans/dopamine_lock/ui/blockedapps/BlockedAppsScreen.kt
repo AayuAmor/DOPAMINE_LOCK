@@ -46,6 +46,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.teamdobermans.dopamine_lock.model.AppBlockItem
+import com.teamdobermans.dopamine_lock.enforcement.InstalledAppsProvider
 import com.teamdobermans.dopamine_lock.navigation.Screen
 import com.teamdobermans.dopamine_lock.repo.BlockedAppsRepositoryImpl
 import com.teamdobermans.dopamine_lock.ui.components.BottomNavigationBar
@@ -72,7 +73,10 @@ fun BlockedAppsScreen(
 ) {
     val context = LocalContext.current.applicationContext
     val viewModel = remember {
-        BlockedAppsViewModel(BlockedAppsRepositoryImpl(context))
+        BlockedAppsViewModel(
+            repository = BlockedAppsRepositoryImpl(context),
+            installedAppsProvider = InstalledAppsProvider(context)
+        )
     }
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
