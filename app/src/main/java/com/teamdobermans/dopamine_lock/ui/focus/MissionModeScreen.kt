@@ -31,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -43,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.teamdobermans.dopamine_lock.model.FocusSession
 import com.teamdobermans.dopamine_lock.model.Mission
+import com.teamdobermans.dopamine_lock.model.MissionStatus
 import com.teamdobermans.dopamine_lock.ui.components.ButtonVariant
 import com.teamdobermans.dopamine_lock.ui.components.DopamineButton
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineBorder
@@ -67,14 +69,27 @@ private val missionRules = listOf(
 fun MissionModeScreen(
     activeSession: FocusSession?,
     activeMission: Mission? = null,
-    onAbandonMission: (sessionId: String, elapsedSeconds: Long) -> Unit
+    onAbandonMission: (sessionId: String, elapsedSeconds: Long) -> Unit,
+    onMissionComplete: () -> Unit = {}
 ) {
     var elapsedSeconds by remember { mutableIntStateOf(0) }
+    var hasEnteredMission by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
+        hasEnteredMission = true
         while (true) {
             delay(1000L)
             elapsedSeconds++
+        }
+    }
+
+    LaunchedEffect(activeMission?.status, activeSession?.completed, activeSession?.abandoned) {
+        if (!hasEnteredMission) return@LaunchedEffect
+        val missionFinished = activeMission?.status == MissionStatus.COMPLETED ||
+                activeMission?.status == MissionStatus.FAILED
+        val sessionFinished = activeSession?.completed == true
+        if (missionFinished || sessionFinished) {
+            onMissionComplete()
         }
     }
 

@@ -545,6 +545,9 @@ fun AppNavigation(
                     missionUiState.activeMission?.missionId?.takeIf { it.isNotBlank() }?.let {
                         missionViewModel.completeMission(it)
                     }
+                    navController.navigate(Screen.Dashboard.route) {
+                        popUpTo(Screen.Dashboard.route) { inclusive = false }
+                    }
                 },
                 onAbandonSession = { sessionId, elapsedSeconds ->
                     val hasMissionPenalty = missionUiState.activeMission?.missionId?.isNotBlank() == true
@@ -555,6 +558,9 @@ fun AppNavigation(
                     )
                     missionUiState.activeMission?.missionId?.takeIf { it.isNotBlank() }?.let {
                         missionViewModel.abandonMission(it)
+                    }
+                    navController.navigate(Screen.Dashboard.route) {
+                        popUpTo(Screen.Dashboard.route) { inclusive = false }
                     }
                 }
             )
@@ -574,6 +580,11 @@ fun AppNavigation(
                     missionUiState.activeMission?.missionId?.takeIf { it.isNotBlank() }?.let { missionId ->
                         missionViewModel.abandonMission(missionId)
                     }
+                    navController.navigate(Screen.Dashboard.route) {
+                        popUpTo(Screen.Dashboard.route) { inclusive = false }
+                    }
+                },
+                onMissionComplete = {
                     navController.navigate(Screen.Dashboard.route) {
                         popUpTo(Screen.Dashboard.route) { inclusive = false }
                     }

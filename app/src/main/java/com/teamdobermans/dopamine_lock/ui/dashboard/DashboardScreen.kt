@@ -28,9 +28,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -78,12 +83,16 @@ fun DashboardScreen(
     onOpenStreakCalendar: () -> Unit = { onNavigate(Screen.Analytics.route) },
     onOpenGoalTracking: () -> Unit = { onNavigate(Screen.Analytics.route) }
 ) {
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+
     val todayGoal = dailyGoals.firstOrNull { !it.completed } ?: dailyGoals.firstOrNull()
     val todayGoalCurrent = todayGoal?.currentProgress?.toFloat() ?: todayFocusHours.toFloat()
     val todayGoalTarget = todayGoal?.targetValue?.toFloat()?.coerceAtLeast(1f) ?: 6f
 
     Scaffold(
         containerColor = Color.Black,
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         bottomBar = {
             BottomNavigationBar(
                 currentRoute = currentRoute,
@@ -107,7 +116,11 @@ fun DashboardScreen(
                 Spacer(modifier = Modifier.height(24.dp))
                 DashboardHeader(
                     userName = user?.name?.takeIf { it.isNotBlank() } ?: "Focus Warrior",
-                    onNotificationsClick = {}
+                    onNotificationsClick = {
+                        coroutineScope.launch {
+                            snackbarHostState.showSnackbar("Notifications — coming soon")
+                        }
+                    }
                 )
                 Spacer(modifier = Modifier.height(28.dp))
             }
