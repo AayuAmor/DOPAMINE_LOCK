@@ -101,11 +101,12 @@ fun AnalyticsScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black)
-                .systemBarsPadding()
-                .padding(bottom = innerPadding.calculateBottomPadding()),
+                .background(Color.Black),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                start = 20.dp, end = 20.dp, top = 0.dp, bottom = 16.dp
+                start = 20.dp,
+                end = 20.dp,
+                top = innerPadding.calculateTopPadding(),
+                bottom = innerPadding.calculateBottomPadding() + 16.dp
             ),
             verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {

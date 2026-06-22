@@ -109,10 +109,13 @@ fun GoalTrackingScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .background(DopamineBlack)
-                .systemBarsPadding()
-                .padding(bottom = innerPadding.calculateBottomPadding()),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 24.dp),
+                .background(DopamineBlack),
+            contentPadding = PaddingValues(
+                start = 20.dp,
+                end = 20.dp,
+                top = innerPadding.calculateTopPadding() + 24.dp,
+                bottom = innerPadding.calculateBottomPadding() + 24.dp
+            ),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             item { GoalTrackingHeader() }

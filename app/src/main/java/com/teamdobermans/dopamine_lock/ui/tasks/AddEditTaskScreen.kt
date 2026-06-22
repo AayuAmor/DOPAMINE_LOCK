@@ -22,13 +22,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Title
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,30 +39,43 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.teamdobermans.dopamine_lock.model.TaskPriority
 import com.teamdobermans.dopamine_lock.ui.components.ButtonVariant
 import com.teamdobermans.dopamine_lock.ui.components.DopamineButton
 import com.teamdobermans.dopamine_lock.ui.components.DopamineTextField
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineBorder
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineCard
+import com.teamdobermans.dopamine_lock.ui.theme.DopamineError
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineGrey
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineWhite
 
 private val categories = listOf("Work", "Development", "Design", "Health", "Learning", "Personal")
-private val priorities = listOf("High", "Medium", "Low")
 
 @Composable
 fun AddEditTaskScreen(
     onNavigateBack: () -> Unit,
-    isEditing: Boolean = false
+    isSaving: Boolean = false,
+    errorMessage: String? = null,
+    successMessage: String? = null,
+    onCreateTask: (title: String, description: String, category: String, dueDate: String, priority: TaskPriority) -> Unit = { _, _, _, _, _ -> },
+    onClearMessages: () -> Unit = {}
 ) {
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("") }
     var dueDate by remember { mutableStateOf("") }
-    var selectedPriority by remember { mutableStateOf("Medium") }
+    var selectedPriority by remember { mutableStateOf(TaskPriority.MEDIUM) }
     val scrollState = rememberScrollState()
+
+    LaunchedEffect(successMessage) {
+        if (successMessage != null) {
+            onClearMessages()
+            onNavigateBack()
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -96,7 +110,7 @@ fun AddEditTaskScreen(
                 }
                 Spacer(modifier = Modifier.weight(1f))
                 Text(
-                    text = if (isEditing) "EDIT TASK" else "NEW TASK",
+                    text = "NEW TASK",
                     style = MaterialTheme.typography.labelLarge,
                     color = DopamineGrey,
                     letterSpacing = 2.sp
@@ -145,12 +159,11 @@ fun AddEditTaskScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                val firstRow = categories.take(3)
-                firstRow.forEach { category ->
+                categories.take(3).forEach { category ->
                     SelectableChip(
                         label = category,
                         selected = selectedCategory == category,
-                        onClick = { selectedCategory = category },
+                        onClick = { selectedCategory = if (selectedCategory == category) "" else category },
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -162,12 +175,11 @@ fun AddEditTaskScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                val secondRow = categories.drop(3)
-                secondRow.forEach { category ->
+                categories.drop(3).forEach { category ->
                     SelectableChip(
                         label = category,
                         selected = selectedCategory == category,
-                        onClick = { selectedCategory = category },
+                        onClick = { selectedCategory = if (selectedCategory == category) "" else category },
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -201,9 +213,9 @@ fun AddEditTaskScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                priorities.forEach { priority ->
+                TaskPriority.values().forEach { priority ->
                     SelectableChip(
-                        label = priority,
+                        label = priority.name.lowercase().replaceFirstChar { it.uppercase() },
                         selected = selectedPriority == priority,
                         onClick = { selectedPriority = priority },
                         modifier = Modifier.weight(1f)
@@ -211,12 +223,29 @@ fun AddEditTaskScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            errorMessage?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = DopamineError,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             DopamineButton(
-                text = if (isEditing) "Save Changes" else "Create Task",
-                onClick = onNavigateBack,
-                variant = ButtonVariant.Primary
+                text = if (isSaving) "Saving..." else "Create Task",
+                onClick = {
+                    onCreateTask(title, description, selectedCategory, dueDate, selectedPriority)
+                },
+                variant = ButtonVariant.Primary,
+                enabled = !isSaving,
+                isLoading = isSaving
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -224,7 +253,8 @@ fun AddEditTaskScreen(
             DopamineButton(
                 text = "Cancel",
                 onClick = onNavigateBack,
-                variant = ButtonVariant.Secondary
+                variant = ButtonVariant.Secondary,
+                enabled = !isSaving
             )
 
             Spacer(modifier = Modifier.height(32.dp))

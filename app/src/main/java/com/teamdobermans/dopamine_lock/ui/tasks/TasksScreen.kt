@@ -41,6 +41,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.teamdobermans.dopamine_lock.model.Task
+import com.teamdobermans.dopamine_lock.model.TaskPriority
 import com.teamdobermans.dopamine_lock.navigation.Screen
 import com.teamdobermans.dopamine_lock.ui.components.BottomNavigationBar
 import com.teamdobermans.dopamine_lock.ui.components.DopamineCard
@@ -49,43 +51,26 @@ import com.teamdobermans.dopamine_lock.ui.theme.DopamineCard as DLCard
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineGrey
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineSurface
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineWhite
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 
 private enum class TaskFilter { All, Pending, Completed }
-
-private enum class Priority { High, Medium, Low }
-
-private data class Task(
-    val id: Int,
-    val title: String,
-    val category: String,
-    val dueDate: String,
-    val priority: Priority,
-    val completed: Boolean
-)
-
-private val sampleTasks = listOf(
-    Task(1, "Design system audit", "Design", "Today", Priority.High, false),
-    Task(2, "Write quarterly report", "Work", "Tomorrow", Priority.High, false),
-    Task(3, "Code review for PR #47", "Development", "Today", Priority.Medium, true),
-    Task(4, "Update dependencies", "Development", "Jun 25", Priority.Low, false),
-    Task(5, "Morning meditation routine", "Health", "Daily", Priority.Medium, true),
-    Task(6, "Read chapter 5 — Deep Work", "Learning", "Jun 23", Priority.Low, true),
-    Task(7, "Architecture proposal doc", "Development", "Jun 28", Priority.High, false),
-    Task(8, "Weekly team sync prep", "Work", "Jun 22", Priority.Medium, false)
-)
 
 @Composable
 fun TasksScreen(
     currentRoute: String = Screen.Tasks.route,
+    tasks: List<Task> = emptyList(),
     onNavigate: (String) -> Unit,
-    onAddTask: () -> Unit
+    onAddTask: () -> Unit,
+    onToggleTask: (taskId: String, completed: Boolean) -> Unit = { _, _ -> },
+    onDeleteTask: (taskId: String) -> Unit = {}
 ) {
     var selectedFilter by remember { mutableStateOf(TaskFilter.All) }
 
     val filteredTasks = when (selectedFilter) {
-        TaskFilter.All -> sampleTasks
-        TaskFilter.Pending -> sampleTasks.filter { !it.completed }
-        TaskFilter.Completed -> sampleTasks.filter { it.completed }
+        TaskFilter.All -> tasks
+        TaskFilter.Pending -> tasks.filter { !it.completed }
+        TaskFilter.Completed -> tasks.filter { it.completed }
     }
 
     Scaffold(
@@ -112,11 +97,12 @@ fun TasksScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black)
-                .systemBarsPadding()
-                .padding(bottom = innerPadding.calculateBottomPadding()),
+                .background(Color.Black),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                start = 20.dp, end = 20.dp, top = 0.dp, bottom = 96.dp
+                start = 20.dp,
+                end = 20.dp,
+                top = innerPadding.calculateTopPadding(),
+                bottom = innerPadding.calculateBottomPadding() + 80.dp
             ),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
@@ -149,7 +135,7 @@ fun TasksScreen(
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {
                         Text(
-                            text = "${sampleTasks.count { !it.completed }} pending",
+                            text = "${tasks.count { !it.completed }} pending",
                             style = MaterialTheme.typography.labelSmall,
                             color = DopamineWhite
                         )
@@ -159,9 +145,7 @@ fun TasksScreen(
             }
 
             item {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(TaskFilter.values().size) { index ->
                         val filter = TaskFilter.values()[index]
                         val selected = selectedFilter == filter
@@ -206,7 +190,7 @@ fun TasksScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "No tasks here",
+                            text = if (tasks.isEmpty()) "No tasks yet. Tap + to add one." else "No tasks here",
                             style = MaterialTheme.typography.bodyMedium,
                             color = DopamineGrey
                         )
@@ -214,7 +198,11 @@ fun TasksScreen(
                 }
             } else {
                 items(filteredTasks.size) { index ->
-                    TaskCard(task = filteredTasks[index])
+                    TaskCard(
+                        task = filteredTasks[index],
+                        onToggle = { onToggleTask(filteredTasks[index].taskId, !filteredTasks[index].completed) },
+                        onDelete = { onDeleteTask(filteredTasks[index].taskId) }
+                    )
                 }
             }
         }
@@ -222,7 +210,11 @@ fun TasksScreen(
 }
 
 @Composable
-private fun TaskCard(task: Task) {
+private fun TaskCard(
+    task: Task,
+    onToggle: () -> Unit,
+    onDelete: () -> Unit
+) {
     DopamineCard {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -230,11 +222,16 @@ private fun TaskCard(task: Task) {
         ) {
             Icon(
                 imageVector = if (task.completed) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
-                contentDescription = null,
+                contentDescription = if (task.completed) "Mark incomplete" else "Mark complete",
                 tint = if (task.completed) DopamineWhite else DopamineGrey,
                 modifier = Modifier
                     .size(22.dp)
                     .padding(top = 2.dp)
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() },
+                        onClick = onToggle
+                    )
             )
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
@@ -255,8 +252,8 @@ private fun TaskCard(task: Task) {
                 }
                 Spacer(modifier = Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CategoryChip(label = task.category)
-                    CategoryChip(label = task.dueDate)
+                    if (task.category.isNotBlank()) CategoryChip(label = task.category)
+                    if (task.dueDate.isNotBlank()) CategoryChip(label = task.dueDate)
                 }
             }
         }
@@ -264,11 +261,11 @@ private fun TaskCard(task: Task) {
 }
 
 @Composable
-private fun PriorityBadge(priority: Priority) {
+private fun PriorityBadge(priority: TaskPriority) {
     val color = when (priority) {
-        Priority.High -> DopamineWhite
-        Priority.Medium -> DopamineGrey
-        Priority.Low -> DopamineGrey.copy(alpha = 0.5f)
+        TaskPriority.HIGH -> DopamineWhite
+        TaskPriority.MEDIUM -> DopamineGrey
+        TaskPriority.LOW -> DopamineGrey.copy(alpha = 0.5f)
     }
     Box(
         modifier = Modifier

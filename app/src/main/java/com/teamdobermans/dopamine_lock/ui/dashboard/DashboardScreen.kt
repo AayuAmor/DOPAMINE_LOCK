@@ -103,11 +103,12 @@ fun DashboardScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black)
-                .systemBarsPadding()
-                .padding(bottom = innerPadding.calculateBottomPadding()),
+                .background(Color.Black),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                start = 20.dp, end = 20.dp, top = 0.dp, bottom = 16.dp
+                start = 20.dp,
+                end = 20.dp,
+                top = innerPadding.calculateTopPadding(),
+                bottom = innerPadding.calculateBottomPadding() + 16.dp
             ),
             verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
@@ -217,13 +218,38 @@ fun DashboardScreen(
 
 private fun FocusSession.toRecentSession(): RecentSession {
     val minutes = (elapsedSeconds / 60L).coerceAtLeast(0)
-    val statusTime = if (startedAt > 0L) "Saved session" else "Session"
+    val ts = (endedAt.takeIf { it > 0L } ?: startedAt).takeIf { it > 0L }
+    val timeLabel = if (ts != null) relativeTimeLabel(ts) else "Session"
     return RecentSession(
         title = missionName.ifBlank { missionType.ifBlank { "Focus Session" } },
-        duration = "${minutes} min",
-        time = statusTime,
+        duration = "$minutes min",
+        time = timeLabel,
         completed = completed
     )
+}
+
+private fun timeBasedGreeting(): String {
+    val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+    return when {
+        hour < 12 -> "Good Morning"
+        hour < 17 -> "Good Afternoon"
+        else -> "Good Evening"
+    }
+}
+
+private fun relativeTimeLabel(ts: Long): String {
+    val now = System.currentTimeMillis()
+    val diffMs = now - ts
+    val diffDays = (diffMs / (24 * 60 * 60 * 1000L)).toInt()
+    val cal = java.util.Calendar.getInstance().apply { timeInMillis = ts }
+    val hour = cal.get(java.util.Calendar.HOUR_OF_DAY)
+    val minute = cal.get(java.util.Calendar.MINUTE)
+    val timeStr = "%02d:%02d".format(hour, minute)
+    return when (diffDays) {
+        0 -> "Today, $timeStr"
+        1 -> "Yesterday, $timeStr"
+        else -> "${diffDays}d ago, $timeStr"
+    }
 }
 
 @Composable
@@ -238,7 +264,7 @@ private fun DashboardHeader(
     ) {
         Column {
             Text(
-                text = "GOOD MORNING",
+                text = timeBasedGreeting().uppercase(),
                 style = MaterialTheme.typography.labelSmall,
                 color = DopamineGrey,
                 letterSpacing = 2.sp

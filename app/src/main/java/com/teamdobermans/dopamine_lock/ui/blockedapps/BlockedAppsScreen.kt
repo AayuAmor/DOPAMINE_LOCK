@@ -125,10 +125,13 @@ private fun BlockedAppsContent(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .background(DopamineBlack)
-                .systemBarsPadding()
-                .padding(bottom = innerPadding.calculateBottomPadding()),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 0.dp, bottom = 24.dp),
+                .background(DopamineBlack),
+            contentPadding = PaddingValues(
+                start = 20.dp,
+                end = 20.dp,
+                top = innerPadding.calculateTopPadding(),
+                bottom = innerPadding.calculateBottomPadding() + 24.dp
+            ),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {

@@ -115,29 +115,40 @@ class AuthViewModel(
             it.copy(
                 isLoading = false,
                 loadingProvider = null,
-                errorMessage = null,
-                successMessage = "GitHub sign-in coming soon"
+                errorMessage = "GitHub sign-in is not available yet.",
+                successMessage = null
             )
         }
     }
 
     fun checkAuthState() {
         viewModelScope.launch {
-            val currentUser = authRepository.getCurrentFirebaseUser()
-            if (currentUser == null) {
+            val firebaseUser = authRepository.getCurrentFirebaseUser()
+            if (firebaseUser == null) {
                 _uiState.value = AuthUiState(isAuthenticated = false, hasCheckedAuthState = true)
                 return@launch
             }
 
-            _uiState.value = AuthUiState(
-                isAuthenticated = true,
-                user = User(
-                    uid = currentUser.uid,
-                    name = currentUser.displayName.orEmpty(),
-                    email = currentUser.email.orEmpty()
-                ),
-                hasCheckedAuthState = true
-            )
+            authRepository.getCurrentUserProfile()
+                .onSuccess { user ->
+                    _uiState.value = AuthUiState(
+                        isAuthenticated = true,
+                        user = user,
+                        hasCheckedAuthState = true
+                    )
+                }
+                .onFailure {
+                    // Profile not in DB yet (e.g. first Google sign-in race); fall back to auth data
+                    _uiState.value = AuthUiState(
+                        isAuthenticated = true,
+                        user = User(
+                            uid = firebaseUser.uid,
+                            name = firebaseUser.displayName.orEmpty(),
+                            email = firebaseUser.email.orEmpty()
+                        ),
+                        hasCheckedAuthState = true
+                    )
+                }
         }
     }
 

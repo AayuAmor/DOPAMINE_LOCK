@@ -1,6 +1,5 @@
 package com.teamdobermans.dopamine_lock.ui.components
 
-import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.Home
@@ -54,8 +53,7 @@ fun BottomNavigationBar(
     HorizontalDivider(color = DopamineBorder, thickness = 1.dp)
     NavigationBar(
         containerColor = DopamineSurface,
-        tonalElevation = 0.dp,
-        modifier = Modifier.height(64.dp)
+        tonalElevation = 0.dp
     ) {
         bottomNavItems.forEach { item ->
             val selected = currentRoute == item.route

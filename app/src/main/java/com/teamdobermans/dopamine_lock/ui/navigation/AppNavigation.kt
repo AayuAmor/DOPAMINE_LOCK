@@ -72,6 +72,9 @@ import com.teamdobermans.dopamine_lock.viewModel.NotificationViewModel
 import com.teamdobermans.dopamine_lock.viewModel.NotificationViewModelFactory
 import com.teamdobermans.dopamine_lock.viewModel.UserViewModel
 import com.teamdobermans.dopamine_lock.viewModel.UserViewModelFactory
+import com.teamdobermans.dopamine_lock.repo.TaskRepositoryImpl
+import com.teamdobermans.dopamine_lock.viewModel.TaskViewModel
+import com.teamdobermans.dopamine_lock.viewModel.TaskViewModelFactory
 import kotlinx.coroutines.launch
 
 @Composable
@@ -174,6 +177,14 @@ fun AppNavigation(
             permissionManager = permissionManager
         )
     )
+    val taskViewModel: TaskViewModel = viewModel(
+        factory = TaskViewModelFactory(
+            TaskRepositoryImpl(
+                auth = FirebaseProvider.auth,
+                database = FirebaseProvider.database
+            )
+        )
+    )
     val authUiState by authViewModel.uiState.collectAsState()
     val userUiState by userViewModel.uiState.collectAsState()
     val focusSessionUiState by focusSessionViewModel.uiState.collectAsState()
@@ -183,6 +194,7 @@ fun AppNavigation(
     val analyticsUiState by analyticsViewModel.uiState.collectAsState()
     val notificationUiState by notificationViewModel.uiState.collectAsState()
     val enforcementUiState by enforcementViewModel.uiState.collectAsState()
+    val taskUiState by taskViewModel.uiState.collectAsState()
     val currentBackStackEntry = navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry.value?.destination?.route ?: Screen.Splash.route
 
@@ -270,6 +282,7 @@ fun AppNavigation(
             notificationViewModel.loadPreferences()
             notificationViewModel.scheduleNotifications()
             enforcementViewModel.checkPermissions()
+            taskViewModel.observeTasks()
         } else {
             userViewModel.clearUser()
             focusSessionViewModel.clear()
@@ -279,6 +292,7 @@ fun AppNavigation(
             analyticsViewModel.clear()
             notificationViewModel.clear()
             enforcementViewModel.stopEnforcement()
+            taskViewModel.clear()
         }
     }
 
@@ -590,10 +604,13 @@ fun AppNavigation(
         composable(Screen.Tasks.route) {
             TasksScreen(
                 currentRoute = currentRoute,
+                tasks = taskUiState.tasks,
                 onNavigate = ::navigateBottomNav,
                 onAddTask = {
                     navController.navigate(Screen.AddTask.route)
-                }
+                },
+                onToggleTask = taskViewModel::toggleTask,
+                onDeleteTask = taskViewModel::deleteTask
             )
         }
 
@@ -601,7 +618,12 @@ fun AppNavigation(
             AddEditTaskScreen(
                 onNavigateBack = {
                     navController.popBackStack()
-                }
+                },
+                isSaving = taskUiState.isSaving,
+                errorMessage = taskUiState.errorMessage,
+                successMessage = taskUiState.successMessage,
+                onCreateTask = taskViewModel::createTask,
+                onClearMessages = taskViewModel::clearMessages
             )
         }
 
