@@ -1,4 +1,4 @@
-package com.teamdobermans.dopamine_lock.data.repositoryImpl
+package com.teamdobermans.dopamine_lock.repo
 
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
@@ -8,9 +8,10 @@ import com.google.firebase.database.DatabaseException
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
-import com.teamdobermans.dopamine_lock.data.repository.FocusSessionRepository
-import com.teamdobermans.dopamine_lock.data.repository.UserRepository
-import com.teamdobermans.dopamine_lock.domain.model.FocusSession
+import com.teamdobermans.dopamine_lock.repo.FocusSessionRepository
+import com.teamdobermans.dopamine_lock.repo.StreakRepository
+import com.teamdobermans.dopamine_lock.repo.UserRepository
+import com.teamdobermans.dopamine_lock.model.FocusSession
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -20,7 +21,8 @@ import java.util.UUID
 class FocusSessionRepositoryImpl(
     private val auth: FirebaseAuth,
     database: FirebaseDatabase,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val streakRepository: StreakRepository? = null
 ) : FocusSessionRepository {
     private val sessionsRef: DatabaseReference = database.reference.child(SESSIONS_PATH)
 
@@ -69,6 +71,7 @@ class FocusSessionRepositoryImpl(
         )
         sessionRef(uid, sessionId).setValue(updated).await()
         updateUserStats(elapsedSeconds, xp, applyDisciplineScore)
+        streakRepository?.evaluateToday()
         updated
     }
 
@@ -90,6 +93,7 @@ class FocusSessionRepositoryImpl(
         )
         sessionRef(uid, sessionId).setValue(updated).await()
         updateUserStats(elapsedSeconds = 0L, xp = -15, applyDisciplineScore = applyDisciplineScore)
+        streakRepository?.evaluateToday()
         updated
     }
 

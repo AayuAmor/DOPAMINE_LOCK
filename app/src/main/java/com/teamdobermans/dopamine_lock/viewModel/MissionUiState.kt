@@ -1,6 +1,6 @@
 package com.teamdobermans.dopamine_lock.viewModel
 
-import com.teamdobermans.dopamine_lock.domain.model.Mission
+import com.teamdobermans.dopamine_lock.model.Mission
 
 data class MissionUiState(
     val isLoading: Boolean = false,

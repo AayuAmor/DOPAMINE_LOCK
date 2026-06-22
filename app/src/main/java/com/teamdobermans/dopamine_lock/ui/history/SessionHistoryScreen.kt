@@ -37,9 +37,9 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.teamdobermans.dopamine_lock.domain.model.FocusSession
-import com.teamdobermans.dopamine_lock.domain.model.Mission
-import com.teamdobermans.dopamine_lock.domain.model.MissionStatus
+import com.teamdobermans.dopamine_lock.model.FocusSession
+import com.teamdobermans.dopamine_lock.model.Mission
+import com.teamdobermans.dopamine_lock.model.MissionStatus
 import com.teamdobermans.dopamine_lock.navigation.Screen
 import com.teamdobermans.dopamine_lock.ui.components.BottomNavigationBar
 import com.teamdobermans.dopamine_lock.ui.components.DopamineTextField

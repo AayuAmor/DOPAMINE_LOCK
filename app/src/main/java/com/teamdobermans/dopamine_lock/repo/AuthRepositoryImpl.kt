@@ -1,4 +1,4 @@
-package com.teamdobermans.dopamine_lock.data.repositoryImpl
+package com.teamdobermans.dopamine_lock.repo
 
 import android.util.Patterns
 import com.google.firebase.FirebaseNetworkException
@@ -11,8 +11,8 @@ import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.database.DatabaseReference
-import com.teamdobermans.dopamine_lock.data.repository.AuthRepository
-import com.teamdobermans.dopamine_lock.domain.model.User
+import com.teamdobermans.dopamine_lock.repo.AuthRepository
+import com.teamdobermans.dopamine_lock.model.User
 import kotlinx.coroutines.tasks.await
 
 class AuthRepositoryImpl(

@@ -4,8 +4,8 @@ import android.util.Patterns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.teamdobermans.dopamine_lock.data.repository.AuthRepository
-import com.teamdobermans.dopamine_lock.domain.model.User
+import com.teamdobermans.dopamine_lock.repo.AuthRepository
+import com.teamdobermans.dopamine_lock.model.User
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

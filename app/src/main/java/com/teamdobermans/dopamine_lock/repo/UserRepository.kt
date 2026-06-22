@@ -1,6 +1,6 @@
-package com.teamdobermans.dopamine_lock.data.repository
+package com.teamdobermans.dopamine_lock.repo
 
-import com.teamdobermans.dopamine_lock.domain.model.User
+import com.teamdobermans.dopamine_lock.model.User
 import kotlinx.coroutines.flow.Flow
 
 interface UserRepository {

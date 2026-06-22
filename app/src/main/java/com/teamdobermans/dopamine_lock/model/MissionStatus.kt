@@ -1,4 +1,4 @@
-package com.teamdobermans.dopamine_lock.domain.model
+package com.teamdobermans.dopamine_lock.model
 
 enum class MissionStatus {
     CREATED,

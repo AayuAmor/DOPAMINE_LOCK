@@ -39,7 +39,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.teamdobermans.dopamine_lock.domain.model.FocusSession
+import com.teamdobermans.dopamine_lock.model.FocusSession
 import com.teamdobermans.dopamine_lock.navigation.Screen
 import com.teamdobermans.dopamine_lock.ui.components.BottomNavigationBar
 import com.teamdobermans.dopamine_lock.ui.components.DashboardStatCard

@@ -1,6 +1,6 @@
 package com.teamdobermans.dopamine_lock.util
 
-import com.teamdobermans.dopamine_lock.domain.model.FocusSession
+import com.teamdobermans.dopamine_lock.model.FocusSession
 import java.util.Calendar
 
 object SessionStatsCalculator {

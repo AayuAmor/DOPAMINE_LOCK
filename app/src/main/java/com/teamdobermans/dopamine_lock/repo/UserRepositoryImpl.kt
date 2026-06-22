@@ -1,4 +1,4 @@
-package com.teamdobermans.dopamine_lock.data.repositoryImpl
+package com.teamdobermans.dopamine_lock.repo
 
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
@@ -8,8 +8,8 @@ import com.google.firebase.database.DatabaseException
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
-import com.teamdobermans.dopamine_lock.data.repository.UserRepository
-import com.teamdobermans.dopamine_lock.domain.model.User
+import com.teamdobermans.dopamine_lock.repo.UserRepository
+import com.teamdobermans.dopamine_lock.model.User
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow

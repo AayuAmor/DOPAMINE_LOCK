@@ -3,8 +3,8 @@ package com.teamdobermans.dopamine_lock.viewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.teamdobermans.dopamine_lock.data.repository.UserRepository
-import com.teamdobermans.dopamine_lock.domain.model.User
+import com.teamdobermans.dopamine_lock.repo.UserRepository
+import com.teamdobermans.dopamine_lock.model.User
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

@@ -20,10 +20,11 @@ import androidx.navigation.compose.rememberNavController
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.teamdobermans.dopamine_lock.BuildConfig
-import com.teamdobermans.dopamine_lock.data.repositoryImpl.AuthRepositoryImpl
-import com.teamdobermans.dopamine_lock.data.repositoryImpl.FocusSessionRepositoryImpl
-import com.teamdobermans.dopamine_lock.data.repositoryImpl.MissionRepositoryImpl
-import com.teamdobermans.dopamine_lock.data.repositoryImpl.UserRepositoryImpl
+import com.teamdobermans.dopamine_lock.repo.AuthRepositoryImpl
+import com.teamdobermans.dopamine_lock.repo.FocusSessionRepositoryImpl
+import com.teamdobermans.dopamine_lock.repo.MissionRepositoryImpl
+import com.teamdobermans.dopamine_lock.repo.StreakRepositoryImpl
+import com.teamdobermans.dopamine_lock.repo.UserRepositoryImpl
 import com.teamdobermans.dopamine_lock.firebase.FirebaseProvider
 import com.teamdobermans.dopamine_lock.ui.analytics.AnalyticsScreen
 import com.teamdobermans.dopamine_lock.ui.auth.ForgotPasswordScreen
@@ -80,12 +81,18 @@ fun AppNavigation() {
         auth = FirebaseProvider.auth,
         database = FirebaseProvider.database
     )
+    val streakRepository = StreakRepositoryImpl(
+        auth = FirebaseProvider.auth,
+        database = FirebaseProvider.database,
+        userRepository = userRepository
+    )
     val focusSessionViewModel: FocusSessionViewModel = viewModel(
         factory = FocusSessionViewModelFactory(
             FocusSessionRepositoryImpl(
                 auth = FirebaseProvider.auth,
                 database = FirebaseProvider.database,
-                userRepository = userRepository
+                userRepository = userRepository,
+                streakRepository = streakRepository
             )
         )
     )
@@ -94,7 +101,8 @@ fun AppNavigation() {
             MissionRepositoryImpl(
                 auth = FirebaseProvider.auth,
                 database = FirebaseProvider.database,
-                userRepository = userRepository
+                userRepository = userRepository,
+                streakRepository = streakRepository
             )
         )
     )

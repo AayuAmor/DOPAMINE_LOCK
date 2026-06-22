@@ -3,8 +3,8 @@ package com.teamdobermans.dopamine_lock.viewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.teamdobermans.dopamine_lock.data.repository.FocusSessionRepository
-import com.teamdobermans.dopamine_lock.domain.model.FocusSession
+import com.teamdobermans.dopamine_lock.repo.FocusSessionRepository
+import com.teamdobermans.dopamine_lock.model.FocusSession
 import com.teamdobermans.dopamine_lock.util.SessionStatsCalculator
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow

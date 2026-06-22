@@ -1,4 +1,4 @@
-package com.teamdobermans.dopamine_lock.domain.model
+package com.teamdobermans.dopamine_lock.model
 
 data class FocusSession(
     val sessionId: String = "",
