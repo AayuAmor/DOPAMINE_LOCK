@@ -3,14 +3,17 @@ package com.teamdobermans.dopamine_lock.ui.components
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.Analytics
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -40,6 +43,7 @@ data class BottomNavItem(
 private val bottomNavItems = listOf(
     BottomNavItem(Screen.Dashboard.route, "Home", Icons.Filled.Home, Icons.Outlined.Home),
     BottomNavItem(Screen.Focus.route, "Focus", Icons.Filled.Timer, Icons.Outlined.Timer),
+    BottomNavItem(Screen.MissionHome.route, "Mission", Icons.Filled.Lock, Icons.Outlined.Lock),
     BottomNavItem(Screen.Tasks.route, "Tasks", Icons.Filled.CheckCircle, Icons.Outlined.CheckCircle),
     BottomNavItem(Screen.Analytics.route, "Stats", Icons.Filled.Analytics, Icons.Outlined.Analytics),
     BottomNavItem(Screen.Settings.route, "Settings", Icons.Filled.Settings, Icons.Outlined.Settings)
@@ -52,6 +56,7 @@ fun BottomNavigationBar(
 ) {
     HorizontalDivider(color = DopamineBorder, thickness = 1.dp)
     NavigationBar(
+        modifier = Modifier.navigationBarsPadding(),
         containerColor = DopamineSurface,
         tonalElevation = 0.dp
     ) {
@@ -69,9 +74,9 @@ fun BottomNavigationBar(
                 label = {
                     Text(
                         text = item.label,
-                        fontSize = 10.sp,
+                        fontSize = 9.sp,
                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                        letterSpacing = 0.5.sp
+                        letterSpacing = 0.sp
                     )
                 },
                 colors = NavigationBarItemDefaults.colors(

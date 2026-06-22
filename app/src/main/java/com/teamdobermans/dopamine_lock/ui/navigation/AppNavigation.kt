@@ -13,10 +13,13 @@ import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.teamdobermans.dopamine_lock.model.MissionStatus
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.teamdobermans.dopamine_lock.BuildConfig
@@ -45,8 +48,14 @@ import com.teamdobermans.dopamine_lock.ui.discipline.DisciplineScoreScreen
 import com.teamdobermans.dopamine_lock.ui.focus.FocusTimerScreen
 import com.teamdobermans.dopamine_lock.ui.focus.MissionModeScreen
 import com.teamdobermans.dopamine_lock.ui.goals.GoalTrackingScreen
+import com.teamdobermans.dopamine_lock.ui.history.SessionDetailsScreen
 import com.teamdobermans.dopamine_lock.ui.history.SessionHistoryScreen
+import com.teamdobermans.dopamine_lock.ui.focus.MissionResultScreen
 import com.teamdobermans.dopamine_lock.ui.mission.CreateMissionScreen
+import com.teamdobermans.dopamine_lock.ui.mission.MissionDetailsScreen
+import com.teamdobermans.dopamine_lock.ui.mission.MissionHistoryScreen
+import com.teamdobermans.dopamine_lock.ui.mission.MissionHomeScreen
+import com.teamdobermans.dopamine_lock.ui.mission.MissionTimerScreen
 import com.teamdobermans.dopamine_lock.ui.onboarding.OnboardingScreen
 import com.teamdobermans.dopamine_lock.ui.settings.SettingsScreen
 import com.teamdobermans.dopamine_lock.ui.splash.SplashScreen
@@ -207,9 +216,16 @@ fun AppNavigation(
     val bottomNavRoutes = setOf(
         Screen.Dashboard.route,
         Screen.Focus.route,
+        Screen.MissionHome.route,
+        Screen.MissionTimer.route,
         Screen.Tasks.route,
         Screen.Analytics.route,
-        Screen.Settings.route
+        Screen.Settings.route,
+        Screen.SessionHistory.route,
+        Screen.StreakCalendar.route,
+        Screen.DisciplineScore.route,
+        Screen.GoalTracking.route,
+        Screen.BlockedApps.route
     )
 
     val publicRoutes = setOf(
@@ -233,8 +249,9 @@ fun AppNavigation(
             "blocked_app_overlay" -> navController.navigate(Screen.BlockedAppOverlay.route) {
                 launchSingleTop = true
             }
+            Screen.MissionHome.route,
             Screen.Mission.route,
-            "mission" -> navController.navigate(Screen.Mission.route) {
+            "mission" -> navController.navigate(Screen.MissionHome.route) {
                 launchSingleTop = true
             }
             Screen.Dashboard.route,
@@ -467,7 +484,7 @@ fun AppNavigation(
                 todaySessionCount = focusSessionUiState.todaySessionCount,
                 onNavigate = ::navigateBottomNav,
                 onStartFocus = {
-                    navController.navigate(Screen.CreateMission.route)
+                    navController.navigate(Screen.MissionHome.route)
                 },
                 onSeeAllSessions = {
                     navController.navigate(Screen.SessionHistory.route)
@@ -477,6 +494,9 @@ fun AppNavigation(
                 },
                 onOpenGoalTracking = {
                     navController.navigate(Screen.GoalTracking.route)
+                },
+                onSessionClick = { sessionId ->
+                    navController.navigate(Screen.SessionDetails.createRoute(sessionId))
                 }
             )
         }
@@ -484,7 +504,10 @@ fun AppNavigation(
         composable(Screen.CreateMission.route) {
             CreateMissionScreen(
                 onNavigateBack = {
-                    navController.popBackStack()
+                    navController.navigate(Screen.MissionHome.route) {
+                        popUpTo(Screen.MissionHome.route) { inclusive = false }
+                        launchSingleTop = true
+                    }
                 },
                 onManageApps = {
                     navController.navigate(Screen.BlockedApps.route)
@@ -512,7 +535,9 @@ fun AppNavigation(
                                         durationMinutes = durationMinutes,
                                         blockedApps = blockedApps,
                                         onSuccess = {
-                                            navController.navigate(Screen.Mission.route)
+                                            navController.navigate(Screen.MissionTimer.route) {
+                                                popUpTo(Screen.CreateMission.route) { inclusive = true }
+                                            }
                                         }
                                     )
                                 }
@@ -521,19 +546,38 @@ fun AppNavigation(
                     )
                 },
                 onCancel = {
-                    navController.popBackStack()
+                    navController.navigate(Screen.MissionHome.route) {
+                        popUpTo(Screen.MissionHome.route) { inclusive = false }
+                        launchSingleTop = true
+                    }
                 }
             )
         }
 
         composable(Screen.Focus.route) {
             FocusTimerScreen(
+                currentRoute = currentRoute,
                 activeSession = focusSessionUiState.activeSession,
+                activeMission = missionUiState.activeMission,
+                onNavigate = ::navigateBottomNav,
                 onNavigateBack = {
                     navController.popBackStack()
                 },
                 onNavigateToMission = {
                     navController.navigate(Screen.Mission.route)
+                },
+                onStartFocusSession = { durationMinutes ->
+                    focusSessionViewModel.startSession(
+                        missionName = "Focus Session",
+                        missionGoal = "Normal focus session",
+                        missionType = "Focus",
+                        durationMinutes = durationMinutes,
+                        blockedApps = emptyList()
+                    ) {
+                        navController.navigate(Screen.Focus.route) {
+                            launchSingleTop = true
+                        }
+                    }
                 },
                 onCompleteSession = { sessionId, elapsedSeconds ->
                     val hasMissionReward = missionUiState.activeMission?.missionId?.isNotBlank() == true
@@ -545,8 +589,8 @@ fun AppNavigation(
                     missionUiState.activeMission?.missionId?.takeIf { it.isNotBlank() }?.let {
                         missionViewModel.completeMission(it)
                     }
-                    navController.navigate(Screen.Dashboard.route) {
-                        popUpTo(Screen.Dashboard.route) { inclusive = false }
+                    navController.navigate(Screen.MissionResult.createRoute(sessionId, "completed")) {
+                        popUpTo(Screen.Focus.route) { inclusive = true }
                     }
                 },
                 onAbandonSession = { sessionId, elapsedSeconds ->
@@ -559,8 +603,85 @@ fun AppNavigation(
                     missionUiState.activeMission?.missionId?.takeIf { it.isNotBlank() }?.let {
                         missionViewModel.abandonMission(it)
                     }
-                    navController.navigate(Screen.Dashboard.route) {
-                        popUpTo(Screen.Dashboard.route) { inclusive = false }
+                    navController.navigate(Screen.MissionResult.createRoute(sessionId, "abandoned")) {
+                        popUpTo(Screen.Focus.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        composable(Screen.MissionHome.route) {
+            MissionHomeScreen(
+                currentRoute = Screen.MissionHome.route,
+                activeMission = missionUiState.activeMission,
+                missions = missionUiState.missions,
+                currentStreak = streakUiState.currentStreak
+                    .takeIf { it > 0 } ?: (userUiState.user?.currentStreak ?: 0),
+                bestStreak = streakUiState.bestStreak
+                    .takeIf { it > 0 } ?: (userUiState.user?.bestStreak ?: 0),
+                disciplineScore = disciplineUiState.score,
+                disciplineRank = disciplineUiState.rank,
+                onNavigate = ::navigateBottomNav,
+                onCreateMission = {
+                    navController.navigate(Screen.CreateMission.route)
+                },
+                onResumeMission = {
+                    navController.navigate(Screen.MissionTimer.route)
+                },
+                onOpenBlockedApps = {
+                    navController.navigate(Screen.BlockedApps.route)
+                },
+                onOpenMissionHistory = {
+                    navController.navigate(Screen.MissionHistory.route)
+                },
+                onOpenStreak = {
+                    navController.navigate(Screen.StreakCalendar.route)
+                },
+                onOpenScore = {
+                    navController.navigate(Screen.DisciplineScore.route)
+                },
+                onOpenMissionDetails = { missionId ->
+                    navController.navigate(Screen.MissionDetails.createRoute(missionId))
+                }
+            )
+        }
+
+        composable(Screen.MissionTimer.route) {
+            MissionTimerScreen(
+                currentRoute = Screen.MissionTimer.route,
+                activeMission = missionUiState.activeMission,
+                activeSession = focusSessionUiState.activeSession,
+                onNavigate = ::navigateBottomNav,
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onEnterMissionMode = {
+                    navController.navigate(Screen.Mission.route)
+                },
+                onCompleteMission = { sessionId, elapsedSeconds ->
+                    focusSessionViewModel.completeSession(
+                        sessionId = sessionId,
+                        elapsedSeconds = elapsedSeconds,
+                        applyDisciplineScore = missionUiState.activeMission == null
+                    )
+                    missionUiState.activeMission?.missionId?.takeIf { it.isNotBlank() }?.let {
+                        missionViewModel.completeMission(it)
+                    }
+                    navController.navigate(Screen.MissionResult.createRoute(sessionId, "completed")) {
+                        popUpTo(Screen.MissionHome.route) { inclusive = false }
+                    }
+                },
+                onAbandonMission = { sessionId, elapsedSeconds ->
+                    focusSessionViewModel.abandonSession(
+                        sessionId = sessionId,
+                        elapsedSeconds = elapsedSeconds,
+                        applyDisciplineScore = missionUiState.activeMission == null
+                    )
+                    missionUiState.activeMission?.missionId?.takeIf { it.isNotBlank() }?.let {
+                        missionViewModel.abandonMission(it)
+                    }
+                    navController.navigate(Screen.MissionResult.createRoute(sessionId, "abandoned")) {
+                        popUpTo(Screen.MissionHome.route) { inclusive = false }
                     }
                 }
             )
@@ -580,13 +701,20 @@ fun AppNavigation(
                     missionUiState.activeMission?.missionId?.takeIf { it.isNotBlank() }?.let { missionId ->
                         missionViewModel.abandonMission(missionId)
                     }
-                    navController.navigate(Screen.Dashboard.route) {
-                        popUpTo(Screen.Dashboard.route) { inclusive = false }
+                    navController.navigate(Screen.MissionResult.createRoute(sessionId, "abandoned")) {
+                        popUpTo(Screen.MissionHome.route) { inclusive = false }
                     }
                 },
                 onMissionComplete = {
-                    navController.navigate(Screen.Dashboard.route) {
-                        popUpTo(Screen.Dashboard.route) { inclusive = false }
+                    val sessionId = focusSessionUiState.activeSession?.sessionId ?: ""
+                    if (sessionId.isNotBlank()) {
+                        navController.navigate(Screen.MissionResult.createRoute(sessionId, "completed")) {
+                            popUpTo(Screen.MissionHome.route) { inclusive = false }
+                        }
+                    } else {
+                        navController.navigate(Screen.MissionHome.route) {
+                            popUpTo(Screen.MissionHome.route) { inclusive = false }
+                        }
                     }
                 }
             )
@@ -613,8 +741,8 @@ fun AppNavigation(
                         ?.let { missionId ->
                         missionViewModel.abandonMission(missionId)
                     }
-                    navController.navigate(Screen.Dashboard.route) {
-                        popUpTo(Screen.Dashboard.route) { inclusive = false }
+                    navController.navigate(Screen.MissionHome.route) {
+                        popUpTo(Screen.MissionHome.route) { inclusive = false }
                     }
                 }
             )
@@ -680,20 +808,23 @@ fun AppNavigation(
 
         composable(Screen.SessionHistory.route) {
             SessionHistoryScreen(
-                currentRoute = Screen.Dashboard.route,
+                currentRoute = Screen.Analytics.route,
                 sessions = focusSessionUiState.sessions,
                 missions = missionUiState.missions,
                 totalFocusHours = focusSessionUiState.totalFocusHours,
                 completedSessions = focusSessionUiState.completedSessions,
                 successRate = analyticsUiState.summary.successRate,
                 averageDurationMinutes = averageSessionLengthMinutes(focusSessionUiState.sessions),
-                onNavigate = ::navigateBottomNav
+                onNavigate = ::navigateBottomNav,
+                onSessionClick = { sessionId ->
+                    navController.navigate(Screen.SessionDetails.createRoute(sessionId))
+                }
             )
         }
 
         composable(Screen.StreakCalendar.route) {
             StreakCalendarScreen(
-                currentRoute = Screen.Dashboard.route,
+                currentRoute = Screen.Analytics.route,
                 user = userUiState.user,
                 streakRecords = streakUiState.streakRecords,
                 currentStreak = streakUiState.currentStreak
@@ -726,7 +857,7 @@ fun AppNavigation(
 
         composable(Screen.GoalTracking.route) {
             GoalTrackingScreen(
-                currentRoute = Screen.Dashboard.route,
+                currentRoute = Screen.Analytics.route,
                 goals = goalUiState.goals,
                 dailyGoals = goalUiState.dailyGoals,
                 weeklyGoals = goalUiState.weeklyGoals,
@@ -770,10 +901,86 @@ fun AppNavigation(
 
         composable(Screen.BlockedApps.route) {
             BlockedAppsScreen(
-                currentRoute = Screen.Settings.route,
+                currentRoute = Screen.MissionHome.route,
                 onNavigate = ::navigateBottomNav,
                 onNavigateBack = {
                     navController.popBackStack()
+                }
+            )
+        }
+
+        // Mission Result
+        composable(
+            route = Screen.MissionResult.route,
+            arguments = listOf(
+                navArgument("sessionId") { type = NavType.StringType },
+                navArgument("result") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val sessionId = backStackEntry.arguments?.getString("sessionId") ?: ""
+            val result = backStackEntry.arguments?.getString("result") ?: "completed"
+            val completed = result == "completed"
+            val session = focusSessionUiState.sessions.firstOrNull { it.sessionId == sessionId }
+            MissionResultScreen(
+                session = session,
+                completed = completed,
+                onViewSession = {
+                    navController.navigate(Screen.SessionDetails.createRoute(sessionId)) {
+                        popUpTo(Screen.MissionResult.route) { inclusive = false }
+                    }
+                },
+                onTryAgain = {
+                    navController.navigate(Screen.CreateMission.route) {
+                        popUpTo(Screen.MissionHome.route) { inclusive = false }
+                    }
+                },
+                onBackToDashboard = {
+                    navController.navigate(Screen.MissionHome.route) {
+                        popUpTo(Screen.MissionHome.route) { inclusive = false }
+                    }
+                }
+            )
+        }
+
+        composable(Screen.MissionHistory.route) {
+            MissionHistoryScreen(
+                currentRoute = Screen.MissionHome.route,
+                missions = missionUiState.missions,
+                onNavigate = ::navigateBottomNav,
+                onMissionClick = { missionId ->
+                    navController.navigate(Screen.MissionDetails.createRoute(missionId))
+                }
+            )
+        }
+
+        composable(
+            route = Screen.MissionDetails.route,
+            arguments = listOf(navArgument("missionId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val missionId = backStackEntry.arguments?.getString("missionId") ?: ""
+            MissionDetailsScreen(
+                currentRoute = Screen.MissionHome.route,
+                mission = missionUiState.missions.firstOrNull { it.missionId == missionId },
+                onNavigate = ::navigateBottomNav
+            )
+        }
+
+        // Session Details
+        composable(
+            route = Screen.SessionDetails.route,
+            arguments = listOf(
+                navArgument("sessionId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val sessionId = backStackEntry.arguments?.getString("sessionId") ?: ""
+            val session = focusSessionUiState.sessions.firstOrNull { it.sessionId == sessionId }
+            SessionDetailsScreen(
+                session = session,
+                onBack = { navController.popBackStack() },
+                onStartSimilarMission = {
+                    navController.navigate(Screen.CreateMission.route) {
+                        popUpTo(Screen.Dashboard.route) { inclusive = false }
+                    }
                 }
             )
         }

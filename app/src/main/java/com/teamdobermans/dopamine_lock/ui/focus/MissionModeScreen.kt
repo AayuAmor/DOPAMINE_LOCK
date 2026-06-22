@@ -1,5 +1,6 @@
 package com.teamdobermans.dopamine_lock.ui.focus
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -24,9 +25,11 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.WifiOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -72,8 +75,16 @@ fun MissionModeScreen(
     onAbandonMission: (sessionId: String, elapsedSeconds: Long) -> Unit,
     onMissionComplete: () -> Unit = {}
 ) {
+    // Guard: no active mission or session → redirect immediately
+    if (activeMission == null && activeSession == null) {
+        LaunchedEffect(Unit) { onMissionComplete() }
+        Box(modifier = Modifier.fillMaxSize().background(Color.Black))
+        return
+    }
+
     var elapsedSeconds by remember { mutableIntStateOf(0) }
     var hasEnteredMission by remember { mutableStateOf(false) }
+    var showAbandonDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         hasEnteredMission = true
@@ -91,6 +102,21 @@ fun MissionModeScreen(
         if (missionFinished || sessionFinished) {
             onMissionComplete()
         }
+    }
+
+    // Back press always shows confirmation dialog — never silently exits
+    BackHandler { showAbandonDialog = true }
+
+    if (showAbandonDialog) {
+        MissionAbandonDialog(
+            onStayFocused = { showAbandonDialog = false },
+            onAbandon = {
+                showAbandonDialog = false
+                activeSession?.sessionId?.takeIf { it.isNotBlank() }?.let {
+                    onAbandonMission(it, elapsedSeconds.toLong())
+                }
+            }
+        )
     }
 
     val hours = elapsedSeconds / 3600
@@ -246,7 +272,7 @@ fun MissionModeScreen(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Abandoning this mission will end your current session and reset your streak. This action cannot be undone.",
+                        text = "Abandoning this mission will end your current session and affect your streak. This action cannot be undone.",
                         style = MaterialTheme.typography.bodySmall,
                         color = DopamineError.copy(alpha = 0.8f),
                         lineHeight = 18.sp
@@ -258,17 +284,65 @@ fun MissionModeScreen(
 
             DopamineButton(
                 text = "Abandon Mission",
-                onClick = {
-                    activeSession?.sessionId?.takeIf { it.isNotBlank() }?.let {
-                        onAbandonMission(it, elapsedSeconds.toLong())
-                    }
-                },
+                onClick = { showAbandonDialog = true },
                 variant = ButtonVariant.Danger
             )
 
             Spacer(modifier = Modifier.height(40.dp))
         }
     }
+}
+
+@Composable
+private fun MissionAbandonDialog(
+    onStayFocused: () -> Unit,
+    onAbandon: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onStayFocused,
+        containerColor = DopamineCard,
+        titleContentColor = DopamineWhite,
+        textContentColor = DopamineGrey,
+        title = {
+            Text(
+                text = "Abandon Mission?",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = "Leaving now will mark this mission as abandoned.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = DopamineGrey
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(DopamineError.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                        .border(1.dp, DopamineError.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                        .padding(12.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("−15 Discipline XP", style = MaterialTheme.typography.labelSmall, color = DopamineError, fontWeight = FontWeight.Bold)
+                        Text("Streak may be affected", style = MaterialTheme.typography.labelSmall, color = DopamineError.copy(alpha = 0.8f))
+                        Text("Session will be saved as failed", style = MaterialTheme.typography.labelSmall, color = DopamineError.copy(alpha = 0.8f))
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onAbandon) {
+                Text("ABANDON MISSION", color = DopamineError, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onStayFocused) {
+                Text("STAY FOCUSED", color = DopamineWhite, fontWeight = FontWeight.Bold)
+            }
+        }
+    )
 }
 
 @Composable
@@ -285,48 +359,18 @@ private fun MissionInfoCard(
             .padding(16.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        MissionInfoItem(
-            label = "DURATION",
-            value = "$durationMinutes min",
-            modifier = Modifier.weight(1f)
-        )
-        MissionInfoItem(
-            label = "BLOCKED",
-            value = blockedAppsCount.toString(),
-            modifier = Modifier.weight(1f)
-        )
-        MissionInfoItem(
-            label = "STATUS",
-            value = status,
-            modifier = Modifier.weight(1f)
-        )
+        MissionInfoItem("DURATION", "$durationMinutes min", Modifier.weight(1f))
+        MissionInfoItem("BLOCKED", blockedAppsCount.toString(), Modifier.weight(1f))
+        MissionInfoItem("STATUS", status, Modifier.weight(1f))
     }
 }
 
 @Composable
-private fun MissionInfoItem(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = DopamineGrey,
-            letterSpacing = 1.5.sp,
-            fontWeight = FontWeight.Bold
-        )
+private fun MissionInfoItem(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(text = label, style = MaterialTheme.typography.labelSmall, color = DopamineGrey, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodySmall,
-            color = DopamineWhite,
-            fontWeight = FontWeight.Bold
-        )
+        Text(text = value, style = MaterialTheme.typography.bodySmall, color = DopamineWhite, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -340,30 +384,13 @@ private fun MissionRuleItem(rule: MissionRule) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            modifier = Modifier
-                .size(32.dp)
-                .background(color = DopamineCard, shape = CircleShape),
+            modifier = Modifier.size(32.dp).background(color = DopamineCard, shape = CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = rule.icon,
-                contentDescription = null,
-                tint = DopamineGrey,
-                modifier = Modifier.size(16.dp)
-            )
+            Icon(imageVector = rule.icon, contentDescription = null, tint = DopamineGrey, modifier = Modifier.size(16.dp))
         }
         Spacer(modifier = Modifier.width(12.dp))
-        Text(
-            text = rule.text,
-            style = MaterialTheme.typography.bodySmall,
-            color = DopamineGrey,
-            modifier = Modifier.weight(1f)
-        )
-        Icon(
-            imageVector = Icons.Filled.Check,
-            contentDescription = null,
-            tint = DopamineWhite,
-            modifier = Modifier.size(16.dp)
-        )
+        Text(text = rule.text, style = MaterialTheme.typography.bodySmall, color = DopamineGrey, modifier = Modifier.weight(1f))
+        Icon(imageVector = Icons.Filled.Check, contentDescription = null, tint = DopamineWhite, modifier = Modifier.size(16.dp))
     }
 }

@@ -1,10 +1,12 @@
 package com.teamdobermans.dopamine_lock.ui.focus
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,16 +26,22 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,31 +55,104 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.teamdobermans.dopamine_lock.model.FocusSession
+import com.teamdobermans.dopamine_lock.model.Mission
+import com.teamdobermans.dopamine_lock.navigation.Screen
+import com.teamdobermans.dopamine_lock.ui.components.BottomNavigationBar
 import com.teamdobermans.dopamine_lock.ui.components.ButtonVariant
 import com.teamdobermans.dopamine_lock.ui.components.DopamineButton
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineBorder
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineCard
+import com.teamdobermans.dopamine_lock.ui.theme.DopamineError
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineGrey
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineSurface
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineWhite
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private enum class TimerState { Idle, Running, Paused }
 
 @Composable
 fun FocusTimerScreen(
+    currentRoute: String = Screen.Focus.route,
     activeSession: FocusSession?,
+    activeMission: Mission? = null,
+    onNavigate: (String) -> Unit = {},
     onNavigateBack: () -> Unit,
     onNavigateToMission: () -> Unit,
+    onStartFocusSession: (durationMinutes: Int) -> Unit,
     onCompleteSession: (sessionId: String, elapsedSeconds: Long) -> Unit,
     onAbandonSession: (sessionId: String, elapsedSeconds: Long) -> Unit
 ) {
-    val totalSeconds = (activeSession?.durationMinutes ?: 25) * 60
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+
+    if (activeSession == null) {
+        Scaffold(
+            containerColor = Color.Black,
+            snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+            bottomBar = { BottomNavigationBar(currentRoute = currentRoute, onNavigate = onNavigate) }
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black)
+                    .padding(horizontal = 24.dp)
+                    .padding(
+                        top = innerPadding.calculateTopPadding() + 32.dp,
+                        bottom = innerPadding.calculateBottomPadding() + 24.dp
+                    ),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = "FOCUS",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = DopamineGrey,
+                    letterSpacing = 3.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Normal focus sessions",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = DopamineWhite,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "Pomodoro, break length, custom focus sessions, and focus preferences are coming soon.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = DopamineGrey
+                )
+                Spacer(modifier = Modifier.height(28.dp))
+                DopamineButton(
+                    text = "START 25 MIN FOCUS",
+                    onClick = { onStartFocusSession(25) },
+                    leadingIcon = Icons.Filled.PlayArrow
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                DopamineButton(
+                    text = "FOCUS PREFERENCES",
+                    onClick = {
+                        coroutineScope.launch {
+                            snackbarHostState.showSnackbar("Focus preferences coming soon")
+                        }
+                    },
+                    variant = ButtonVariant.Secondary
+                )
+                Spacer(modifier = Modifier.weight(1f))
+            }
+        }
+        return
+    }
+
+    val totalSeconds = activeSession.durationMinutes * 60
     var remainingSeconds by remember { mutableIntStateOf(totalSeconds) }
     var timerState by remember { mutableStateOf(TimerState.Idle) }
+    var showAbandonDialog by remember { mutableStateOf(false) }
     val elapsedSeconds = (totalSeconds - remainingSeconds).coerceAtLeast(0)
 
-    LaunchedEffect(activeSession?.sessionId, totalSeconds) {
+    LaunchedEffect(activeSession.sessionId, totalSeconds) {
         remainingSeconds = totalSeconds
         timerState = TimerState.Idle
     }
@@ -91,22 +172,45 @@ fun FocusTimerScreen(
             }
             if (remainingSeconds == 0) {
                 timerState = TimerState.Idle
-                activeSession?.sessionId?.takeIf { it.isNotBlank() }?.let {
+                activeSession.sessionId.takeIf { it.isNotBlank() }?.let {
                     onCompleteSession(it, totalSeconds.toLong())
                 }
             }
         }
     }
 
+    // Back press while running → confirmation dialog; otherwise normal back
+    BackHandler(enabled = timerState == TimerState.Running) {
+        showAbandonDialog = true
+    }
+
+    if (showAbandonDialog) {
+        AbandonConfirmationDialog(
+            onStayFocused = { showAbandonDialog = false },
+            onAbandon = {
+                showAbandonDialog = false
+                timerState = TimerState.Idle
+                activeSession.sessionId.takeIf { it.isNotBlank() }?.let {
+                    onAbandonSession(it, elapsedSeconds.toLong())
+                }
+            }
+        )
+    }
+
     val minutes = remainingSeconds / 60
     val seconds = remainingSeconds % 60
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
-            .systemBarsPadding()
-    ) {
+    Scaffold(
+        containerColor = Color.Black,
+        bottomBar = { BottomNavigationBar(currentRoute = currentRoute, onNavigate = onNavigate) }
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .systemBarsPadding()
+                .padding(bottom = innerPadding.calculateBottomPadding())
+        ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -120,7 +224,10 @@ fun FocusTimerScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
-                    onClick = onNavigateBack,
+                    onClick = {
+                        if (timerState == TimerState.Running) showAbandonDialog = true
+                        else onNavigateBack()
+                    },
                     modifier = Modifier
                         .size(44.dp)
                         .background(color = DopamineCard, shape = CircleShape)
@@ -178,7 +285,7 @@ fun FocusTimerScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
-                text = (activeSession?.missionType ?: "DEEP WORK").uppercase(),
+                text = (activeSession.missionType.ifBlank { "DEEP WORK" }).uppercase(),
                 style = MaterialTheme.typography.labelLarge,
                 color = DopamineGrey,
                 letterSpacing = 3.sp
@@ -187,7 +294,7 @@ fun FocusTimerScreen(
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "${activeSession?.durationMinutes ?: 25}-minute focus block",
+                text = "${activeSession.durationMinutes}-minute focus block",
                 style = MaterialTheme.typography.bodySmall,
                 color = DopamineGrey.copy(alpha = 0.6f)
             )
@@ -218,13 +325,7 @@ fun FocusTimerScreen(
                         )
                         DopamineButton(
                             text = "End",
-                            onClick = {
-                                timerState = TimerState.Idle
-                                activeSession?.sessionId?.takeIf { it.isNotBlank() }?.let {
-                                    onAbandonSession(it, elapsedSeconds.toLong())
-                                }
-                                remainingSeconds = totalSeconds
-                            },
+                            onClick = { showAbandonDialog = true },
                             variant = ButtonVariant.Danger,
                             leadingIcon = Icons.Filled.Stop,
                             modifier = Modifier.weight(1f)
@@ -240,13 +341,7 @@ fun FocusTimerScreen(
                         )
                         DopamineButton(
                             text = "End",
-                            onClick = {
-                                timerState = TimerState.Idle
-                                activeSession?.sessionId?.takeIf { it.isNotBlank() }?.let {
-                                    onAbandonSession(it, elapsedSeconds.toLong())
-                                }
-                                remainingSeconds = totalSeconds
-                            },
+                            onClick = { showAbandonDialog = true },
                             variant = ButtonVariant.Danger,
                             leadingIcon = Icons.Filled.Stop,
                             modifier = Modifier.weight(1f)
@@ -257,15 +352,71 @@ fun FocusTimerScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            DopamineButton(
-                text = "Enter Mission Mode",
-                onClick = onNavigateToMission,
-                variant = ButtonVariant.Secondary
-            )
+            // Enter Mission Mode only available when an active mission exists
+            if (activeMission != null) {
+                DopamineButton(
+                    text = "Enter Mission Mode",
+                    onClick = onNavigateToMission,
+                    variant = ButtonVariant.Secondary
+                )
+            }
 
             Spacer(modifier = Modifier.height(32.dp))
         }
+        }
     }
+}
+
+@Composable
+private fun AbandonConfirmationDialog(
+    onStayFocused: () -> Unit,
+    onAbandon: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onStayFocused,
+        containerColor = DopamineCard,
+        titleContentColor = DopamineWhite,
+        textContentColor = DopamineGrey,
+        title = {
+            Text(
+                text = "Abandon Mission?",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = "Leaving now will mark this mission as abandoned.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = DopamineGrey
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(DopamineError.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                        .border(1.dp, DopamineError.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                        .padding(12.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("−15 Discipline XP", style = MaterialTheme.typography.labelSmall, color = DopamineError, fontWeight = FontWeight.Bold)
+                        Text("Streak may be affected", style = MaterialTheme.typography.labelSmall, color = DopamineError.copy(alpha = 0.8f))
+                        Text("Session will be saved as failed", style = MaterialTheme.typography.labelSmall, color = DopamineError.copy(alpha = 0.8f))
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onAbandon) {
+                Text("Abandon Mission", color = DopamineError, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onStayFocused) {
+                Text("Stay Focused", color = DopamineWhite, fontWeight = FontWeight.Bold)
+            }
+        }
+    )
 }
 
 @Composable
@@ -288,7 +439,6 @@ private fun CircularTimerDisplay(
                     x = (size.width - diameter) / 2,
                     y = (size.height - diameter) / 2
                 )
-
                 drawArc(
                     color = trackColor,
                     startAngle = -90f,
@@ -298,7 +448,6 @@ private fun CircularTimerDisplay(
                     size = Size(diameter, diameter),
                     style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
                 )
-
                 drawArc(
                     color = progressColor,
                     startAngle = -90f,

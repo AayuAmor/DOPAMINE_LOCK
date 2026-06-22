@@ -83,7 +83,8 @@ fun SessionHistoryScreen(
     completedSessions: Int = 0,
     successRate: Int = 0,
     averageDurationMinutes: Int = 0,
-    onNavigate: (String) -> Unit
+    onNavigate: (String) -> Unit,
+    onSessionClick: (sessionId: String) -> Unit = {}
 ) {
     var selectedFilter by remember { mutableStateOf("All") }
     var searchQuery by remember { mutableStateOf("") }
@@ -150,7 +151,8 @@ fun SessionHistoryScreen(
                     item {
                         SessionDateGroup(
                             dateLabel = dateLabel,
-                            sessions = groupedSessions
+                            sessions = groupedSessions,
+                            onSessionClick = { onSessionClick(it) }
                         )
                     }
                 }
@@ -303,7 +305,8 @@ private fun SessionHistorySearchBar(
 @Composable
 private fun SessionDateGroup(
     dateLabel: String,
-    sessions: List<HistorySession>
+    sessions: List<HistorySession>,
+    onSessionClick: (sessionId: String) -> Unit = {}
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
@@ -314,18 +317,19 @@ private fun SessionDateGroup(
             fontWeight = FontWeight.Bold
         )
         sessions.forEach { session ->
-            SessionHistoryCard(session = session)
+            SessionHistoryCard(session = session, onClick = { onSessionClick(session.id) })
         }
     }
 }
 
 @Composable
-private fun SessionHistoryCard(session: HistorySession) {
+private fun SessionHistoryCard(session: HistorySession, onClick: () -> Unit = {}) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(DopamineCard, RoundedCornerShape(12.dp))
             .border(1.dp, DopamineBorder, RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
             .padding(16.dp)
     ) {
         Row(

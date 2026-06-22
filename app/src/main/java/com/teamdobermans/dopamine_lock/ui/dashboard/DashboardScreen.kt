@@ -2,6 +2,7 @@ package com.teamdobermans.dopamine_lock.ui.dashboard
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -60,7 +61,7 @@ import com.teamdobermans.dopamine_lock.ui.theme.DopamineGrey
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineSurface
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineWhite
 
-private data class RecentSession(val title: String, val duration: String, val time: String, val completed: Boolean)
+private data class RecentSession(val sessionId: String, val title: String, val duration: String, val time: String, val completed: Boolean)
 
 @Composable
 fun DashboardScreen(
@@ -78,10 +79,11 @@ fun DashboardScreen(
     todayFocusHours: Double = 0.0,
     todaySessionCount: Int = 0,
     onNavigate: (String) -> Unit,
-    onStartFocus: () -> Unit = { onNavigate(Screen.Focus.route) },
+    onStartFocus: () -> Unit = { onNavigate(Screen.MissionHome.route) },
     onSeeAllSessions: () -> Unit = { onNavigate(Screen.Analytics.route) },
     onOpenStreakCalendar: () -> Unit = { onNavigate(Screen.Analytics.route) },
-    onOpenGoalTracking: () -> Unit = { onNavigate(Screen.Analytics.route) }
+    onOpenGoalTracking: () -> Unit = { onNavigate(Screen.Analytics.route) },
+    onSessionClick: (sessionId: String) -> Unit = {}
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -174,7 +176,7 @@ fun DashboardScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     DopamineButton(
-                        text = "Start Focus",
+                        text = "Start Mission",
                         onClick = onStartFocus,
                         variant = ButtonVariant.Primary,
                         leadingIcon = Icons.Filled.PlayArrow,
@@ -223,7 +225,7 @@ fun DashboardScreen(
             } else {
                 items(recent.size) { index ->
                     val session = recent[index]
-                    SessionListItem(session = session)
+                    SessionListItem(session = session, onClick = { onSessionClick(session.sessionId) })
                     if (index < recent.size - 1) {
                         Box(
                             modifier = Modifier
@@ -243,6 +245,7 @@ private fun FocusSession.toRecentSession(): RecentSession {
     val ts = (endedAt.takeIf { it > 0L } ?: startedAt).takeIf { it > 0L }
     val timeLabel = if (ts != null) relativeTimeLabel(ts) else "Session"
     return RecentSession(
+        sessionId = sessionId,
         title = missionName.ifBlank { missionType.ifBlank { "Focus Session" } },
         duration = "$minutes min",
         time = timeLabel,
@@ -340,9 +343,9 @@ private fun formatFocusHours(hours: Double): String {
 }
 
 @Composable
-private fun SessionListItem(session: RecentSession) {
+private fun SessionListItem(session: RecentSession, onClick: () -> Unit = {}) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         shape = RoundedCornerShape(0.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(0.dp)
