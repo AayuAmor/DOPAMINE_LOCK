@@ -38,7 +38,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.teamdobermans.dopamine_lock.model.FocusSession
 import com.teamdobermans.dopamine_lock.model.Mission
-import com.teamdobermans.dopamine_lock.model.MissionStatus
 import com.teamdobermans.dopamine_lock.navigation.Screen
 import com.teamdobermans.dopamine_lock.ui.components.BottomNavigationBar
 import com.teamdobermans.dopamine_lock.ui.components.DopamineTextField
@@ -51,11 +50,16 @@ import com.teamdobermans.dopamine_lock.ui.theme.DopamineError
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineGrey
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineSurface
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineWhite
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 private enum class SessionStatus { Completed, Active, Abandoned, Failed }
 
 private data class HistorySession(
     val id: String,
+    val startedAt: Long,
     val dateLabel: String,
     val title: String,
     val status: SessionStatus,
@@ -69,61 +73,6 @@ private data class HistorySession(
 )
 
 private val filterOptions = listOf("All", "Completed", "Failed", "This Week", "This Month")
-
-private val mockSessions = listOf(
-    HistorySession(
-        id = "deep-work-today",
-        dateLabel = "TODAY",
-        title = "Deep Work Sprint",
-        status = SessionStatus.Completed,
-        duration = "90 min",
-        timeRange = "09:00 - 10:30",
-        missionType = "Deep Work",
-        appsBlocked = 3,
-        goal = "Finish DSA Notes",
-        disciplineXp = 25,
-        completion = 1f
-    ),
-    HistorySession(
-        id = "react-learning",
-        dateLabel = "TODAY",
-        title = "React Learning",
-        status = SessionStatus.Failed,
-        duration = "25 min",
-        timeRange = "13:10 - 13:35",
-        missionType = "Study",
-        appsBlocked = 4,
-        goal = "Complete component cleanup",
-        disciplineXp = -10,
-        completion = 0.42f
-    ),
-    HistorySession(
-        id = "reading-yesterday",
-        dateLabel = "YESTERDAY",
-        title = "Reading Session",
-        status = SessionStatus.Completed,
-        duration = "45 min",
-        timeRange = "20:00 - 20:45",
-        missionType = "Reading",
-        appsBlocked = 2,
-        goal = "Read product design chapter",
-        disciplineXp = 25,
-        completion = 1f
-    ),
-    HistorySession(
-        id = "coding-june-18",
-        dateLabel = "JUNE 18",
-        title = "Coding Mission",
-        status = SessionStatus.Completed,
-        duration = "120 min",
-        timeRange = "07:30 - 09:30",
-        missionType = "Coding",
-        appsBlocked = 5,
-        goal = "Implement mission planning UI",
-        disciplineXp = 25,
-        completion = 1f
-    )
-)
 
 @Composable
 fun SessionHistoryScreen(
@@ -139,12 +88,10 @@ fun SessionHistoryScreen(
     var selectedFilter by remember { mutableStateOf("All") }
     var searchQuery by remember { mutableStateOf("") }
 
-    val visibleSessions = remember(selectedFilter, searchQuery, sessions, missions) {
-        val historySessions = when {
-            missions.isNotEmpty() -> missions.map { it.toHistorySession() }
-            sessions.isNotEmpty() -> sessions.map { it.toHistorySession() }
-            else -> mockSessions
-        }
+    val visibleSessions = remember(selectedFilter, searchQuery, sessions) {
+        val historySessions = sessions
+            .sortedByDescending { it.startedAt }
+            .map { it.toHistorySession() }
         filterSessions(
             sessions = historySessions,
             selectedFilter = selectedFilter,
@@ -177,7 +124,7 @@ fun SessionHistoryScreen(
             item {
                 SessionHistorySummary(
                     totalFocusHours = totalFocusHours,
-                    sessionCount = sessions.size.takeIf { it > 0 } ?: missions.size,
+                    sessionCount = sessions.size,
                     successRate = successRate,
                     averageDurationMinutes = averageDurationMinutes
                 )
@@ -199,11 +146,11 @@ fun SessionHistoryScreen(
                 item { SessionHistoryEmptyState() }
             } else {
                 val groups = visibleSessions.groupBy { it.dateLabel }
-                groups.forEach { (dateLabel, sessions) ->
+                groups.forEach { (dateLabel, groupedSessions) ->
                     item {
                         SessionDateGroup(
                             dateLabel = dateLabel,
-                            sessions = sessions
+                            sessions = groupedSessions
                         )
                     }
                 }
@@ -256,74 +203,65 @@ private fun SessionHistorySummary(
 }
 
 private fun FocusSession.toHistorySession(): HistorySession {
-    val minutes = (elapsedSeconds / 60L).coerceAtLeast(0)
+    val elapsedMinutes = (elapsedSeconds / 60L).coerceAtLeast(0)
+    val plannedSeconds = durationMinutes * 60L
+    val completionRatio = when {
+        completed -> 1f
+        plannedSeconds > 0 -> (elapsedSeconds.toFloat() / plannedSeconds.toFloat()).coerceIn(0f, 0.99f)
+        else -> 0f
+    }
     return HistorySession(
         id = sessionId,
+        startedAt = startedAt,
         dateLabel = dateLabel(startedAt),
         title = missionName.ifBlank { missionType.ifBlank { "Focus Session" } },
-        status = if (completed) SessionStatus.Completed else SessionStatus.Failed,
-        duration = "$minutes min",
-        timeRange = if (startedAt > 0L && endedAt > 0L) "Saved mission" else "In progress",
+        status = when {
+            completed -> SessionStatus.Completed
+            abandoned -> SessionStatus.Abandoned
+            else -> SessionStatus.Failed
+        },
+        duration = "$elapsedMinutes min",
+        timeRange = formatTimeRange(startedAt, endedAt),
         missionType = missionType.ifBlank { "Focus" },
         appsBlocked = blockedApps.size,
         goal = missionGoal.ifBlank { "No goal recorded" },
         disciplineXp = disciplineXp,
-        completion = if (completed) 1f else 0.42f
+        completion = completionRatio
     )
 }
 
-private fun Mission.toHistorySession(): HistorySession {
-    val endedAt = completedAt.takeIf { it > 0L } ?: startedAt
-    val status = when (status) {
-        MissionStatus.COMPLETED -> SessionStatus.Completed
-        MissionStatus.ACTIVE -> SessionStatus.Active
-        MissionStatus.ABANDONED -> SessionStatus.Abandoned
-        MissionStatus.FAILED -> SessionStatus.Failed
-        MissionStatus.CREATED -> SessionStatus.Active
-    }
-    val completion = when (this.status) {
-        MissionStatus.COMPLETED -> 1f
-        MissionStatus.ACTIVE -> 0.5f
-        MissionStatus.CREATED -> 0.15f
-        MissionStatus.ABANDONED,
-        MissionStatus.FAILED -> 0.42f
-    }
-
-    return HistorySession(
-        id = missionId,
-        dateLabel = dateLabel(startedAt.takeIf { it > 0L } ?: createdAt),
-        title = title.ifBlank { missionType.ifBlank { "Mission" } },
-        status = status,
-        duration = "$durationMinutes min",
-        timeRange = if (endedAt > 0L) "Mission status: ${this.status.name}" else "Created mission",
-        missionType = missionType.ifBlank { "Focus" },
-        appsBlocked = blockedApps.size,
-        goal = goal.ifBlank { "No goal recorded" },
-        disciplineXp = disciplineReward - disciplinePenalty,
-        completion = completion
-    )
+private fun formatTimeRange(startedAt: Long, endedAt: Long): String {
+    if (startedAt <= 0L) return "Unknown time"
+    val fmt = SimpleDateFormat("HH:mm", Locale.getDefault())
+    val start = fmt.format(Date(startedAt))
+    return if (endedAt > 0L) "$start – ${fmt.format(Date(endedAt))}" else "$start – ongoing"
 }
 
 private fun dateLabel(timestamp: Long): String {
     if (timestamp <= 0L) return "UNKNOWN"
-    val now = java.util.Calendar.getInstance()
-    val date = java.util.Calendar.getInstance().apply { timeInMillis = timestamp }
-    val yesterday = java.util.Calendar.getInstance().apply { add(java.util.Calendar.DAY_OF_YEAR, -1) }
+    val now = Calendar.getInstance()
+    val date = Calendar.getInstance().apply { timeInMillis = timestamp }
+    val yesterday = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
     return when {
         sameDay(now, date) -> "TODAY"
         sameDay(yesterday, date) -> "YESTERDAY"
-        else -> java.text.SimpleDateFormat("MMMM d", java.util.Locale.US).format(java.util.Date(timestamp)).uppercase()
+        else -> SimpleDateFormat("MMMM d", Locale.US).format(Date(timestamp)).uppercase()
     }
 }
 
-private fun sameDay(first: java.util.Calendar, second: java.util.Calendar): Boolean {
-    return first.get(java.util.Calendar.YEAR) == second.get(java.util.Calendar.YEAR) &&
-        first.get(java.util.Calendar.DAY_OF_YEAR) == second.get(java.util.Calendar.DAY_OF_YEAR)
+private fun sameDay(first: Calendar, second: Calendar): Boolean =
+    first.get(Calendar.YEAR) == second.get(Calendar.YEAR) &&
+        first.get(Calendar.DAY_OF_YEAR) == second.get(Calendar.DAY_OF_YEAR)
+
+private fun startOfDay(cal: Calendar): Long {
+    return Calendar.getInstance().apply {
+        set(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH), 0, 0, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
 }
 
-private fun formatHours(hours: Double): String {
-    return if (hours % 1.0 == 0.0) hours.toInt().toString() else "%.1f".format(hours)
-}
+private fun formatHours(hours: Double): String =
+    if (hours % 1.0 == 0.0) hours.toInt().toString() else "%.1f".format(hours)
 
 @Composable
 private fun SessionHistoryFilters(
@@ -433,7 +371,7 @@ private fun SessionHistoryCard(session: HistorySession) {
         ) {
             SessionProgressIndicator(
                 progress = session.completion,
-                failed = session.status == SessionStatus.Failed,
+                failed = session.status == SessionStatus.Failed || session.status == SessionStatus.Abandoned,
                 modifier = Modifier.weight(1f)
             )
             Spacer(modifier = Modifier.width(14.dp))
@@ -592,8 +530,22 @@ private fun filterSessions(
     val byFilter = when (selectedFilter) {
         "Completed" -> sessions.filter { it.status == SessionStatus.Completed }
         "Failed" -> sessions.filter { it.status == SessionStatus.Failed || it.status == SessionStatus.Abandoned }
-        "This Week" -> sessions
-        "This Month" -> sessions
+        "This Week" -> {
+            val weekStart = Calendar.getInstance().apply {
+                set(Calendar.DAY_OF_WEEK, firstDayOfWeek)
+                set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+            }.timeInMillis
+            sessions.filter { it.startedAt >= weekStart }
+        }
+        "This Month" -> {
+            val monthStart = Calendar.getInstance().apply {
+                set(Calendar.DAY_OF_MONTH, 1)
+                set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+            }.timeInMillis
+            sessions.filter { it.startedAt >= monthStart }
+        }
         else -> sessions
     }
 
@@ -603,6 +555,7 @@ private fun filterSessions(
     return byFilter.filter { session ->
         session.title.contains(trimmedQuery, ignoreCase = true) ||
             session.goal.contains(trimmedQuery, ignoreCase = true) ||
+            session.missionType.contains(trimmedQuery, ignoreCase = true) ||
             session.dateLabel.contains(trimmedQuery, ignoreCase = true)
     }
 }
