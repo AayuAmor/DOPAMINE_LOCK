@@ -73,6 +73,8 @@ import com.teamdobermans.dopamine_lock.viewModel.NotificationViewModelFactory
 import com.teamdobermans.dopamine_lock.viewModel.UserViewModel
 import com.teamdobermans.dopamine_lock.viewModel.UserViewModelFactory
 import com.teamdobermans.dopamine_lock.repo.TaskRepositoryImpl
+import com.teamdobermans.dopamine_lock.viewModel.StreakViewModel
+import com.teamdobermans.dopamine_lock.viewModel.StreakViewModelFactory
 import com.teamdobermans.dopamine_lock.viewModel.TaskViewModel
 import com.teamdobermans.dopamine_lock.viewModel.TaskViewModelFactory
 import kotlinx.coroutines.launch
@@ -185,6 +187,9 @@ fun AppNavigation(
             )
         )
     )
+    val streakViewModel: StreakViewModel = viewModel(
+        factory = StreakViewModelFactory(streakRepository)
+    )
     val authUiState by authViewModel.uiState.collectAsState()
     val userUiState by userViewModel.uiState.collectAsState()
     val focusSessionUiState by focusSessionViewModel.uiState.collectAsState()
@@ -195,6 +200,7 @@ fun AppNavigation(
     val notificationUiState by notificationViewModel.uiState.collectAsState()
     val enforcementUiState by enforcementViewModel.uiState.collectAsState()
     val taskUiState by taskViewModel.uiState.collectAsState()
+    val streakUiState by streakViewModel.uiState.collectAsState()
     val currentBackStackEntry = navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry.value?.destination?.route ?: Screen.Splash.route
 
@@ -283,6 +289,7 @@ fun AppNavigation(
             notificationViewModel.scheduleNotifications()
             enforcementViewModel.checkPermissions()
             taskViewModel.observeTasks()
+            streakViewModel.observeStreakRecords()
         } else {
             userViewModel.clearUser()
             focusSessionViewModel.clear()
@@ -293,6 +300,7 @@ fun AppNavigation(
             notificationViewModel.clear()
             enforcementViewModel.stopEnforcement()
             taskViewModel.clear()
+            streakViewModel.clear()
         }
     }
 
@@ -676,6 +684,11 @@ fun AppNavigation(
             StreakCalendarScreen(
                 currentRoute = Screen.Dashboard.route,
                 user = userUiState.user,
+                streakRecords = streakUiState.streakRecords,
+                currentStreak = streakUiState.currentStreak
+                    .takeIf { it > 0 } ?: (userUiState.user?.currentStreak ?: 0),
+                bestStreak = streakUiState.bestStreak
+                    .takeIf { it > 0 } ?: (userUiState.user?.bestStreak ?: 0),
                 onNavigate = ::navigateBottomNav,
                 onStartMission = {
                     navController.navigate(Screen.CreateMission.route)

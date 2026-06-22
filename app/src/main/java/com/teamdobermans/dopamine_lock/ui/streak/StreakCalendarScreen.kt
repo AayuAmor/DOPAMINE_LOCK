@@ -28,9 +28,10 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.launch
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.teamdobermans.dopamine_lock.model.StreakRecord
 import com.teamdobermans.dopamine_lock.model.User
 import com.teamdobermans.dopamine_lock.navigation.Screen
 import com.teamdobermans.dopamine_lock.ui.components.BottomNavigationBar
@@ -52,6 +54,11 @@ import com.teamdobermans.dopamine_lock.ui.theme.DopamineError
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineGrey
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineSurface
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineWhite
+import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 private enum class StreakDayState { Completed, Missed, Today, Neutral }
 
@@ -60,37 +67,30 @@ private data class CalendarDay(
     val state: StreakDayState = StreakDayState.Neutral
 )
 
-private val weekDays = listOf("M", "T", "W", "T", "F", "S", "S")
-private val completedDays = setOf(1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 15, 16)
-private val missedDays = setOf(6, 13)
-private const val todayDay = 21
-
-private val june2026Days = buildList {
-    for (day in 1..30) {
-        add(
-            CalendarDay(
-                day = day,
-                state = when (day) {
-                    todayDay -> StreakDayState.Today
-                    in completedDays -> StreakDayState.Completed
-                    in missedDays -> StreakDayState.Missed
-                    else -> StreakDayState.Neutral
-                }
-            )
-        )
-    }
-    repeat(5) { add(CalendarDay(day = null)) }
-}
+private val weekDayLabels = listOf("M", "T", "W", "T", "F", "S", "S")
 
 @Composable
 fun StreakCalendarScreen(
     currentRoute: String = Screen.Dashboard.route,
     user: User? = null,
+    streakRecords: List<StreakRecord> = emptyList(),
+    currentStreak: Int = 0,
+    bestStreak: Int = 0,
     onNavigate: (String) -> Unit,
     onStartMission: () -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
-    val coroutineScope = rememberCoroutineScope()
+    var displayMonth by remember { mutableStateOf(YearMonth.now()) }
+    val today = remember { LocalDate.now() }
+
+    val recordByDate = remember(streakRecords) { streakRecords.associateBy { it.date } }
+
+    val calendarDays = remember(displayMonth, recordByDate) {
+        buildCalendarDays(displayMonth, recordByDate, today)
+    }
+
+    val completionRate = remember(streakRecords) { calcCompletionRate(streakRecords) }
+    val weekStats = remember(streakRecords) { calcWeekStats(streakRecords, today) }
 
     Scaffold(
         containerColor = DopamineBlack,
@@ -115,23 +115,86 @@ fun StreakCalendarScreen(
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             item { StreakCalendarHeader() }
-            item { StreakSummaryCards(user = user) }
+            item {
+                StreakSummaryCards(
+                    currentStreak = currentStreak,
+                    bestStreak = bestStreak,
+                    completionRate = completionRate
+                )
+            }
             item {
                 DopamineCard {
-                    CalendarMonthSelector(onMonthChange = {
-                        coroutineScope.launch { snackbarHostState.showSnackbar("Month navigation — coming soon") }
-                    })
+                    CalendarMonthSelector(
+                        displayMonth = displayMonth,
+                        onPrevMonth = { displayMonth = displayMonth.minusMonths(1) },
+                        onNextMonth = {
+                            if (displayMonth.isBefore(YearMonth.now())) {
+                                displayMonth = displayMonth.plusMonths(1)
+                            }
+                        },
+                        canGoForward = displayMonth.isBefore(YearMonth.now())
+                    )
                     Spacer(modifier = Modifier.height(16.dp))
-                    StreakCalendarGrid()
+                    StreakCalendarGrid(calendarDays = calendarDays)
                     Spacer(modifier = Modifier.height(16.dp))
                     StreakLegend()
                 }
             }
-            item { WeeklyConsistencyCard() }
-            item { StreakMilestoneCard(currentStreak = user?.currentStreak ?: 0) }
+            item { WeeklyConsistencyCard(completed = weekStats.first, total = weekStats.second) }
+            item { StreakMilestoneCard(currentStreak = currentStreak) }
             item { StreakCalendarActions(onStartMission = onStartMission) }
         }
     }
+}
+
+private fun buildCalendarDays(
+    yearMonth: YearMonth,
+    recordByDate: Map<String, StreakRecord>,
+    today: LocalDate
+): List<CalendarDay> {
+    val firstDay = yearMonth.atDay(1)
+    // ISO: Monday=1 … Sunday=7; offset = days of blank cells before day 1
+    val leadingBlanks = (firstDay.dayOfWeek.value - DayOfWeek.MONDAY.value + 7) % 7
+    val daysInMonth = yearMonth.lengthOfMonth()
+
+    return buildList {
+        repeat(leadingBlanks) { add(CalendarDay(day = null)) }
+        for (d in 1..daysInMonth) {
+            val date = yearMonth.atDay(d)
+            val dateStr = date.toString()
+            val record = recordByDate[dateStr]
+            val state = when {
+                date == today -> StreakDayState.Today
+                record?.successful == true -> StreakDayState.Completed
+                record != null -> StreakDayState.Missed
+                else -> StreakDayState.Neutral
+            }
+            add(CalendarDay(day = d, state = state))
+        }
+        // Pad trailing cells so the last row is full
+        val filled = leadingBlanks + daysInMonth
+        val remainder = filled % 7
+        if (remainder != 0) repeat(7 - remainder) { add(CalendarDay(day = null)) }
+    }
+}
+
+private fun calcCompletionRate(records: List<StreakRecord>): Int {
+    if (records.isEmpty()) return 0
+    return (records.count { it.successful } * 100 / records.size)
+}
+
+private fun calcWeekStats(records: List<StreakRecord>, today: LocalDate): Pair<Int, Int> {
+    val weekStart = today.with(DayOfWeek.MONDAY)
+    val byDate = records.associateBy { it.date }
+    var completed = 0
+    var tracked = 0
+    for (offset in 0L..6L) {
+        val date = weekStart.plusDays(offset)
+        if (date.isAfter(today)) break
+        tracked++
+        if (byDate[date.toString()]?.successful == true) completed++
+    }
+    return Pair(completed, tracked.coerceAtLeast(1))
 }
 
 @Composable
@@ -155,44 +218,50 @@ private fun StreakCalendarHeader() {
 }
 
 @Composable
-private fun StreakSummaryCards(user: User?) {
+private fun StreakSummaryCards(currentStreak: Int, bestStreak: Int, completionRate: Int) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        SummaryCard(value = (user?.currentStreak ?: 0).toString(), label = "Current Streak", unit = "Days", modifier = Modifier.weight(1f))
-        SummaryCard(value = (user?.bestStreak ?: 0).toString(), label = "Best Streak", unit = "Days", modifier = Modifier.weight(1f))
-        SummaryCard(value = "87%", label = "Completion Rate", unit = "", modifier = Modifier.weight(1f))
+        SummaryCard(value = currentStreak.toString(), label = "Current Streak", unit = "Days", modifier = Modifier.weight(1f))
+        SummaryCard(value = bestStreak.toString(), label = "Best Streak", unit = "Days", modifier = Modifier.weight(1f))
+        SummaryCard(value = "$completionRate%", label = "Completion Rate", unit = "", modifier = Modifier.weight(1f))
     }
 }
 
 @Composable
-private fun CalendarMonthSelector(onMonthChange: () -> Unit) {
+private fun CalendarMonthSelector(
+    displayMonth: YearMonth,
+    onPrevMonth: () -> Unit,
+    onNextMonth: () -> Unit,
+    canGoForward: Boolean
+) {
+    val label = displayMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.US)).uppercase()
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        MonthArrowButton(left = true, onClick = onMonthChange)
+        MonthArrowButton(left = true, enabled = true, onClick = onPrevMonth)
         Text(
-            text = "JUNE 2026",
+            text = label,
             style = MaterialTheme.typography.titleMedium,
             color = DopamineWhite,
             fontWeight = FontWeight.Bold,
             letterSpacing = 2.sp
         )
-        MonthArrowButton(left = false, onClick = onMonthChange)
+        MonthArrowButton(left = false, enabled = canGoForward, onClick = onNextMonth)
     }
 }
 
 @Composable
-private fun StreakCalendarGrid() {
+private fun StreakCalendarGrid(calendarDays: List<CalendarDay>) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            weekDays.forEach { day ->
+            weekDayLabels.forEach { day ->
                 Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                     Text(
                         text = day,
@@ -204,7 +273,7 @@ private fun StreakCalendarGrid() {
             }
         }
 
-        june2026Days.chunked(7).forEach { week ->
+        calendarDays.chunked(7).forEach { week ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -234,18 +303,18 @@ private fun StreakLegend() {
 }
 
 @Composable
-private fun WeeklyConsistencyCard() {
+private fun WeeklyConsistencyCard(completed: Int, total: Int) {
     DopamineCard {
         SectionLabel("THIS WEEK")
         Spacer(modifier = Modifier.height(10.dp))
         Text(
-            text = "5 / 7 days completed",
+            text = "$completed / $total days completed",
             style = MaterialTheme.typography.titleLarge,
             color = DopamineWhite,
             fontWeight = FontWeight.Bold
         )
         Spacer(modifier = Modifier.height(12.dp))
-        ProgressBar(progress = 5f / 7f)
+        ProgressBar(progress = if (total > 0) completed.toFloat() / total.toFloat() else 0f)
         Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = "Stay consistent to protect your chain.",
@@ -280,7 +349,7 @@ private fun StreakMilestoneCard(currentStreak: Int) {
             color = DopamineGrey
         )
         Spacer(modifier = Modifier.height(12.dp))
-        ProgressBar(progress = currentStreak.toFloat() / nextMilestone.toFloat())
+        ProgressBar(progress = if (nextMilestone > 0) currentStreak.toFloat() / nextMilestone.toFloat() else 0f)
         Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = "Reward: Discipline Rank Upgrade",
@@ -377,18 +446,20 @@ private fun LegendItem(label: String, state: StreakDayState) {
 }
 
 @Composable
-private fun MonthArrowButton(left: Boolean, onClick: () -> Unit) {
+private fun MonthArrowButton(left: Boolean, enabled: Boolean, onClick: () -> Unit) {
     IconButton(
         onClick = onClick,
+        enabled = enabled,
         modifier = Modifier
             .size(36.dp)
-            .background(DopamineSurface, CircleShape)
+            .background(if (enabled) DopamineSurface else DopamineSurface.copy(alpha = 0.4f), CircleShape)
             .border(1.dp, DopamineBorder, CircleShape)
     ) {
         Icon(
-            imageVector = if (left) Icons.AutoMirrored.Filled.KeyboardArrowLeft else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            imageVector = if (left) Icons.AutoMirrored.Filled.KeyboardArrowLeft
+                          else Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = null,
-            tint = DopamineWhite
+            tint = if (enabled) DopamineWhite else DopamineGrey
         )
     }
 }
@@ -421,7 +492,7 @@ private fun ProgressBar(progress: Float) {
     ) {
         Box(
             modifier = Modifier
-                .fillMaxWidth(progress)
+                .fillMaxWidth(progress.coerceIn(0f, 1f))
                 .height(7.dp)
                 .background(DopamineWhite, RoundedCornerShape(99.dp))
         )
@@ -445,6 +516,8 @@ private fun StreakCalendarScreenPreview() {
     DOPAMINE_LOCKTheme {
         StreakCalendarScreen(
             user = User(currentStreak = 12, bestStreak = 38),
+            currentStreak = 12,
+            bestStreak = 38,
             onNavigate = {},
             onStartMission = {}
         )
