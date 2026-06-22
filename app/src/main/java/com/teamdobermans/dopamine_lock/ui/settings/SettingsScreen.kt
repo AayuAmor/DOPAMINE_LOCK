@@ -30,6 +30,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -37,7 +39,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import com.teamdobermans.dopamine_lock.model.EnforcementSettings
 import com.teamdobermans.dopamine_lock.model.NotificationPreferences
 import androidx.compose.ui.Alignment
@@ -83,9 +87,15 @@ fun SettingsScreen(
         notificationPreferences.goalReminderEnabled ||
         notificationPreferences.missionReminderEnabled ||
         notificationPreferences.milestoneNotificationsEnabled
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+    val showComingSoon: (String) -> Unit = { msg ->
+        coroutineScope.launch { snackbarHostState.showSnackbar(msg) }
+    }
 
     Scaffold(
         containerColor = Color.Black,
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         bottomBar = {
             BottomNavigationBar(currentRoute = currentRoute, onNavigate = onNavigate)
         }
@@ -120,7 +130,7 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(32.dp))
             }
 
-            item { ProfileCard(user = user) }
+            item { ProfileCard(user = user, onClick = { showComingSoon("Edit Profile — coming soon") }) }
 
             item {
                 Spacer(modifier = Modifier.height(28.dp))
@@ -130,19 +140,19 @@ fun SettingsScreen(
                     SettingsNavigationRow(
                         icon = Icons.Filled.Person,
                         label = "Edit Profile",
-                        onClick = {}
+                        onClick = { showComingSoon("Edit Profile — coming soon") }
                     )
                     SettingsDivider()
                     SettingsNavigationRow(
                         icon = Icons.Filled.Key,
                         label = "Change Password",
-                        onClick = {}
+                        onClick = { showComingSoon("Change Password — coming soon") }
                     )
                     SettingsDivider()
                     SettingsNavigationRow(
                         icon = Icons.Filled.Lock,
                         label = "Privacy & Security",
-                        onClick = {}
+                        onClick = { showComingSoon("Privacy & Security — coming soon") }
                     )
                 }
             }
@@ -166,14 +176,14 @@ fun SettingsScreen(
                         icon = Icons.Filled.Timer,
                         label = "Default Session Length",
                         trailing = "25 min",
-                        onClick = {}
+                        onClick = { showComingSoon("Custom session length — coming soon") }
                     )
                     SettingsDivider()
                     SettingsNavigationRow(
                         icon = Icons.Filled.Timer,
                         label = "Break Duration",
                         trailing = "5 min",
-                        onClick = {}
+                        onClick = { showComingSoon("Custom break duration — coming soon") }
                     )
                     SettingsDivider()
                     SettingsNavigationRow(
@@ -327,7 +337,7 @@ fun SettingsScreen(
                         icon = Icons.Filled.Palette,
                         label = "Theme",
                         trailing = "Dark",
-                        onClick = {}
+                        onClick = { showComingSoon("Dark mode only — more themes coming soon") }
                     )
                 }
             }
@@ -354,7 +364,7 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun ProfileCard(user: User?) {
+private fun ProfileCard(user: User?, onClick: () -> Unit) {
     val displayName = user?.name?.takeIf { it.isNotBlank() } ?: "Focus Warrior"
     val email = user?.email?.takeIf { it.isNotBlank() } ?: "No email available"
     val streak = user?.currentStreak ?: 0
@@ -365,6 +375,7 @@ private fun ProfileCard(user: User?) {
             .fillMaxWidth()
             .background(color = DopamineCard, shape = RoundedCornerShape(12.dp))
             .border(1.dp, DopamineBorder, RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

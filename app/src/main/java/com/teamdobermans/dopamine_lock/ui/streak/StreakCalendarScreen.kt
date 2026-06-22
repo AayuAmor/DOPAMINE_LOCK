@@ -24,8 +24,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -84,8 +89,12 @@ fun StreakCalendarScreen(
     onNavigate: (String) -> Unit,
     onStartMission: () -> Unit
 ) {
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+
     Scaffold(
         containerColor = DopamineBlack,
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         bottomBar = {
             BottomNavigationBar(
                 currentRoute = currentRoute,
@@ -109,7 +118,9 @@ fun StreakCalendarScreen(
             item { StreakSummaryCards(user = user) }
             item {
                 DopamineCard {
-                    CalendarMonthSelector()
+                    CalendarMonthSelector(onMonthChange = {
+                        coroutineScope.launch { snackbarHostState.showSnackbar("Month navigation — coming soon") }
+                    })
                     Spacer(modifier = Modifier.height(16.dp))
                     StreakCalendarGrid()
                     Spacer(modifier = Modifier.height(16.dp))
@@ -156,13 +167,13 @@ private fun StreakSummaryCards(user: User?) {
 }
 
 @Composable
-private fun CalendarMonthSelector() {
+private fun CalendarMonthSelector(onMonthChange: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        MonthArrowButton(left = true)
+        MonthArrowButton(left = true, onClick = onMonthChange)
         Text(
             text = "JUNE 2026",
             style = MaterialTheme.typography.titleMedium,
@@ -170,7 +181,7 @@ private fun CalendarMonthSelector() {
             fontWeight = FontWeight.Bold,
             letterSpacing = 2.sp
         )
-        MonthArrowButton(left = false)
+        MonthArrowButton(left = false, onClick = onMonthChange)
     }
 }
 
@@ -366,9 +377,9 @@ private fun LegendItem(label: String, state: StreakDayState) {
 }
 
 @Composable
-private fun MonthArrowButton(left: Boolean) {
+private fun MonthArrowButton(left: Boolean, onClick: () -> Unit) {
     IconButton(
-        onClick = {},
+        onClick = onClick,
         modifier = Modifier
             .size(36.dp)
             .background(DopamineSurface, CircleShape)
