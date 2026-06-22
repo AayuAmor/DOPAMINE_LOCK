@@ -22,6 +22,7 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.teamdobermans.dopamine_lock.BuildConfig
 import com.teamdobermans.dopamine_lock.model.DisciplineEvent
 import com.teamdobermans.dopamine_lock.model.Goal
+import com.teamdobermans.dopamine_lock.repo.AnalyticsRepositoryImpl
 import com.teamdobermans.dopamine_lock.repo.AuthRepositoryImpl
 import com.teamdobermans.dopamine_lock.repo.DisciplineRepositoryImpl
 import com.teamdobermans.dopamine_lock.repo.FocusSessionRepositoryImpl
@@ -49,6 +50,8 @@ import com.teamdobermans.dopamine_lock.ui.splash.SplashScreen
 import com.teamdobermans.dopamine_lock.ui.streak.StreakCalendarScreen
 import com.teamdobermans.dopamine_lock.ui.tasks.AddEditTaskScreen
 import com.teamdobermans.dopamine_lock.ui.tasks.TasksScreen
+import com.teamdobermans.dopamine_lock.viewModel.AnalyticsViewModel
+import com.teamdobermans.dopamine_lock.viewModel.AnalyticsViewModelFactory
 import com.teamdobermans.dopamine_lock.viewModel.AuthViewModel
 import com.teamdobermans.dopamine_lock.viewModel.AuthViewModelFactory
 import com.teamdobermans.dopamine_lock.ui.auth.AuthProvider
@@ -105,29 +108,27 @@ fun AppNavigation() {
         userRepository = userRepository,
         disciplineRepository = disciplineRepository
     )
+    val focusSessionRepository = FocusSessionRepositoryImpl(
+        auth = FirebaseProvider.auth,
+        database = FirebaseProvider.database,
+        userRepository = userRepository,
+        streakRepository = streakRepository,
+        disciplineRepository = disciplineRepository,
+        goalRepository = goalRepository
+    )
+    val missionRepository = MissionRepositoryImpl(
+        auth = FirebaseProvider.auth,
+        database = FirebaseProvider.database,
+        userRepository = userRepository,
+        streakRepository = streakRepository,
+        disciplineRepository = disciplineRepository,
+        goalRepository = goalRepository
+    )
     val focusSessionViewModel: FocusSessionViewModel = viewModel(
-        factory = FocusSessionViewModelFactory(
-            FocusSessionRepositoryImpl(
-                auth = FirebaseProvider.auth,
-                database = FirebaseProvider.database,
-                userRepository = userRepository,
-                streakRepository = streakRepository,
-                disciplineRepository = disciplineRepository,
-                goalRepository = goalRepository
-            )
-        )
+        factory = FocusSessionViewModelFactory(focusSessionRepository)
     )
     val missionViewModel: MissionViewModel = viewModel(
-        factory = MissionViewModelFactory(
-            MissionRepositoryImpl(
-                auth = FirebaseProvider.auth,
-                database = FirebaseProvider.database,
-                userRepository = userRepository,
-                streakRepository = streakRepository,
-                disciplineRepository = disciplineRepository,
-                goalRepository = goalRepository
-            )
-        )
+        factory = MissionViewModelFactory(missionRepository)
     )
     val disciplineViewModel: DisciplineViewModel = viewModel(
         factory = DisciplineViewModelFactory(disciplineRepository)
@@ -135,12 +136,25 @@ fun AppNavigation() {
     val goalViewModel: GoalViewModel = viewModel(
         factory = GoalViewModelFactory(goalRepository)
     )
+    val analyticsViewModel: AnalyticsViewModel = viewModel(
+        factory = AnalyticsViewModelFactory(
+            AnalyticsRepositoryImpl(
+                focusSessionRepository = focusSessionRepository,
+                missionRepository = missionRepository,
+                goalRepository = goalRepository,
+                streakRepository = streakRepository,
+                userRepository = userRepository,
+                disciplineRepository = disciplineRepository
+            )
+        )
+    )
     val authUiState by authViewModel.uiState.collectAsState()
     val userUiState by userViewModel.uiState.collectAsState()
     val focusSessionUiState by focusSessionViewModel.uiState.collectAsState()
     val missionUiState by missionViewModel.uiState.collectAsState()
     val disciplineUiState by disciplineViewModel.uiState.collectAsState()
     val goalUiState by goalViewModel.uiState.collectAsState()
+    val analyticsUiState by analyticsViewModel.uiState.collectAsState()
     val currentBackStackEntry = navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry.value?.destination?.route ?: Screen.Splash.route
 
@@ -191,12 +205,27 @@ fun AppNavigation() {
             disciplineViewModel.observeRank()
             disciplineViewModel.observeHistory()
             goalViewModel.observeGoals()
+            analyticsViewModel.loadAnalytics()
         } else {
             userViewModel.clearUser()
             focusSessionViewModel.clear()
             missionViewModel.clear()
             disciplineViewModel.clear()
             goalViewModel.clear()
+            analyticsViewModel.clear()
+        }
+    }
+
+    LaunchedEffect(
+        authUiState.isAuthenticated,
+        focusSessionUiState.sessions.size,
+        missionUiState.missions.size,
+        goalUiState.goals.size,
+        goalUiState.completedGoals.size,
+        disciplineUiState.score
+    ) {
+        if (authUiState.isAuthenticated) {
+            analyticsViewModel.refreshAnalytics()
         }
     }
 
@@ -338,12 +367,14 @@ fun AppNavigation() {
                 currentRoute = currentRoute,
                 user = userUiState.user,
                 sessions = focusSessionUiState.sessions,
-                disciplineScore = disciplineUiState.score,
+                disciplineScore = analyticsUiState.summary.disciplineScore,
                 disciplineRank = disciplineUiState.rank,
                 recentDisciplineEvent = disciplineUiState.recentEvents.firstOrNull(),
                 dailyGoals = goalUiState.dailyGoals,
                 weeklyGoals = goalUiState.weeklyGoals,
                 monthlyGoals = goalUiState.monthlyGoals,
+                successRate = analyticsUiState.summary.successRate,
+                bestFocusDay = analyticsUiState.summary.bestFocusDay,
                 todayFocusHours = focusSessionUiState.todayFocusHours,
                 todaySessionCount = focusSessionUiState.todaySessionCount,
                 onNavigate = ::navigateBottomNav,
@@ -498,18 +529,22 @@ fun AppNavigation() {
             AnalyticsScreen(
                 currentRoute = currentRoute,
                 sessions = focusSessionUiState.sessions,
-                totalFocusHours = focusSessionUiState.totalFocusHours,
-                completedSessions = focusSessionUiState.completedSessions,
-                successRate = focusSessionUiState.successRate,
-                weeklyFocusHours = focusSessionUiState.weeklyFocusHours,
-                disciplineScore = disciplineUiState.score,
+                totalFocusHours = analyticsUiState.summary.totalFocusHours,
+                completedSessions = analyticsUiState.summary.completedSessions,
+                totalSessions = analyticsUiState.summary.totalSessions,
+                successRate = analyticsUiState.summary.successRate,
+                weeklyFocusHours = analyticsUiState.weeklyHours.map { it.toFloat() },
+                monthlyFocusHours = analyticsUiState.monthlyHours.map { it.toFloat() },
+                focusDistribution = analyticsUiState.focusDistribution,
+                bestFocusDay = analyticsUiState.bestFocusDay,
+                bestFocusHours = bestFocusDayHours(focusSessionUiState.sessions, analyticsUiState.summary.bestFocusDay),
+                disciplineScore = analyticsUiState.summary.disciplineScore,
                 disciplineRank = disciplineUiState.rank,
-                averageDailyDisciplineGain = averageDailyDisciplineGain(disciplineUiState.events),
+                averageDailyDisciplineGain = analyticsUiState.disciplineGrowth,
                 mostValuableHabit = mostValuableHabit(disciplineUiState.events),
-                scoreGrowthTrend = scoreGrowthTrend(disciplineUiState.events, disciplineUiState.score),
                 goalsCreated = goalUiState.goals.size,
-                goalsCompleted = goalUiState.completedGoals.size,
-                goalCompletionRate = goalCompletionRate(goalUiState.goals),
+                goalsCompleted = analyticsUiState.summary.completedGoals,
+                goalCompletionRate = analyticsUiState.goalCompletionRate,
                 averageGoalCompletionTimeHours = averageGoalCompletionTimeHours(goalUiState.completedGoals),
                 mostSuccessfulGoalType = mostSuccessfulGoalType(goalUiState.completedGoals),
                 onNavigate = ::navigateBottomNav,
@@ -529,7 +564,8 @@ fun AppNavigation() {
                 missions = missionUiState.missions,
                 totalFocusHours = focusSessionUiState.totalFocusHours,
                 completedSessions = focusSessionUiState.completedSessions,
-                successRate = focusSessionUiState.successRate,
+                successRate = analyticsUiState.summary.successRate,
+                averageDurationMinutes = averageSessionLengthMinutes(focusSessionUiState.sessions),
                 onNavigate = ::navigateBottomNav
             )
         }
@@ -635,6 +671,24 @@ private fun scoreGrowthTrend(events: List<DisciplineEvent>, currentScore: Int): 
         runningScore = (runningScore + points).coerceAtLeast(0)
         runningScore.toFloat()
     }
+}
+
+private fun averageSessionLengthMinutes(sessions: List<com.teamdobermans.dopamine_lock.model.FocusSession>): Int {
+    val completed = sessions.filter { it.completed }
+    if (completed.isEmpty()) return 0
+    return (completed.sumOf { it.elapsedSeconds } / completed.size / 60L).toInt()
+}
+
+private fun bestFocusDayHours(
+    sessions: List<com.teamdobermans.dopamine_lock.model.FocusSession>,
+    bestDay: String
+): Double {
+    if (bestDay.isBlank()) return 0.0
+    val formatter = java.text.SimpleDateFormat("EEEE", java.util.Locale.getDefault())
+    return sessions
+        .filter { it.completed }
+        .filter { formatter.format(it.endedAt.takeIf { endedAt -> endedAt > 0L } ?: it.startedAt) == bestDay }
+        .sumOf { it.elapsedSeconds } / 3600.0
 }
 
 private fun goalCompletionRate(goals: List<Goal>): Int {

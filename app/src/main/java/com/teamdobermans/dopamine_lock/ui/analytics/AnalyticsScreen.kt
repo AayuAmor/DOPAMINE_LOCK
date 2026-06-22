@@ -61,29 +61,21 @@ private val weeklyData = listOf(
     Pair("Sun", 4.2f)
 )
 
-private val monthlyData = listOf(
-    3.1f, 2.8f, 4.5f, 5.2f, 4.8f, 6.0f, 5.5f, 4.2f, 3.9f, 5.8f,
-    6.2f, 4.5f, 3.7f, 5.0f, 5.5f, 6.3f, 5.8f, 4.1f, 3.5f, 4.9f,
-    5.7f, 6.0f, 5.3f, 4.8f, 5.2f, 5.9f, 6.1f, 4.7f, 5.0f, 4.3f
-)
-
 private data class FocusCategory(val name: String, val hours: Float, val percentage: Int)
-
-private val focusCategories = listOf(
-    FocusCategory("Deep Work", 24f, 45),
-    FocusCategory("Learning", 14f, 26),
-    FocusCategory("Design", 8f, 15),
-    FocusCategory("Meetings", 7f, 14)
-)
 
 @Composable
 fun AnalyticsScreen(
     currentRoute: String = Screen.Analytics.route,
     sessions: List<FocusSession> = emptyList(),
     totalFocusHours: Double = 0.0,
+    totalSessions: Int = sessions.size,
     completedSessions: Int = 0,
     successRate: Int = 0,
     weeklyFocusHours: List<Float> = List(7) { 0f },
+    monthlyFocusHours: List<Float> = emptyList(),
+    focusDistribution: Map<String, Double> = emptyMap(),
+    bestFocusDay: String = "",
+    bestFocusHours: Double = 0.0,
     disciplineScore: Int = 0,
     disciplineRank: DisciplineRank = DisciplineRank.D,
     averageDailyDisciplineGain: Int = 0,
@@ -98,6 +90,8 @@ fun AnalyticsScreen(
     onOpenStreakCalendar: () -> Unit = {},
     onOpenDisciplineScore: () -> Unit = {}
 ) {
+    val categories = remember(focusDistribution) { focusDistribution.toFocusCategories() }
+
     Scaffold(
         containerColor = Color.Black,
         bottomBar = {
@@ -145,15 +139,15 @@ fun AnalyticsScreen(
                         modifier = Modifier.weight(1f)
                     )
                     DashboardStatCard(
-                        value = sessions.size.toString(),
+                        value = totalSessions.toString(),
                         label = "Sessions",
                         modifier = Modifier.weight(1f)
                     )
                     DashboardStatCard(
-                        value = disciplineScore.toString(),
-                        label = "Score ${disciplineRank.name}",
+                        value = successRate.toString(),
+                        label = "Success %",
                         modifier = Modifier.weight(1f),
-                        onClick = onOpenDisciplineScore
+                        onClick = onOpenStreakCalendar
                     )
                 }
                 Spacer(modifier = Modifier.height(28.dp))
@@ -214,16 +208,16 @@ fun AnalyticsScreen(
             item {
                 SectionHeader(title = "Monthly Trend")
                 Spacer(modifier = Modifier.height(16.dp))
-                MonthlyLineChart(data = scoreGrowthTrend.takeIf { it.size > 1 } ?: monthlyData)
+                MonthlyLineChart(data = monthlyFocusHours.takeIf { it.size > 1 } ?: List(2) { 0f })
                 Spacer(modifier = Modifier.height(28.dp))
             }
 
             item {
                 SectionHeader(title = "Focus Distribution")
                 Spacer(modifier = Modifier.height(16.dp))
-                focusCategories.forEachIndexed { index, category ->
+                categories.forEachIndexed { index, category ->
                     FocusCategoryRow(category = category)
-                    if (index < focusCategories.size - 1) {
+                    if (index < categories.size - 1) {
                         Spacer(modifier = Modifier.height(10.dp))
                     }
                 }
@@ -233,7 +227,11 @@ fun AnalyticsScreen(
             item {
                 SectionHeader(title = "Best Performance Day")
                 Spacer(modifier = Modifier.height(12.dp))
-                BestDayCard()
+                BestDayCard(
+                    day = bestFocusDay.ifBlank { "No focus day yet" },
+                    focusHours = bestFocusHours,
+                    completedSessions = completedSessions
+                )
             }
         }
     }
@@ -241,6 +239,21 @@ fun AnalyticsScreen(
 
 private fun formatHours(hours: Double): String {
     return if (hours % 1.0 == 0.0) hours.toInt().toString() else "%.1f".format(hours)
+}
+
+private fun Map<String, Double>.toFocusCategories(): List<FocusCategory> {
+    val total = values.sum().coerceAtLeast(0.0)
+    if (total <= 0.0) return listOf(FocusCategory("No focus data", 0f, 0))
+
+    return entries
+        .sortedByDescending { it.value }
+        .map { (name, hours) ->
+            FocusCategory(
+                name = name,
+                hours = hours.toFloat(),
+                percentage = ((hours / total) * 100).toInt()
+            )
+        }
 }
 
 @Composable
@@ -301,7 +314,7 @@ private fun WeeklyBarChart(data: List<Pair<String, Float>>) {
 
 @Composable
 private fun MonthlyLineChart(data: List<Float>) {
-    val maxValue = data.maxOf { it }
+    val maxValue = data.maxOf { it }.coerceAtLeast(1f)
 
     Box(
         modifier = Modifier
@@ -409,7 +422,11 @@ private fun FocusCategoryRow(category: FocusCategory) {
 }
 
 @Composable
-private fun BestDayCard() {
+private fun BestDayCard(
+    day: String,
+    focusHours: Double,
+    completedSessions: Int
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -423,7 +440,7 @@ private fun BestDayCard() {
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "FRIDAY",
+                    text = day.uppercase(),
                     style = MaterialTheme.typography.labelLarge,
                     color = DopamineWhite,
                     letterSpacing = 3.sp,
@@ -431,13 +448,13 @@ private fun BestDayCard() {
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "6.0 hours of deep focus",
+                    text = "${formatHours(focusHours)} hours of deep focus",
                     style = MaterialTheme.typography.bodySmall,
                     color = DopamineGrey
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "8 sessions completed",
+                    text = "$completedSessions sessions completed",
                     style = MaterialTheme.typography.bodySmall,
                     color = DopamineGrey
                 )
@@ -450,7 +467,7 @@ private fun BestDayCard() {
                     letterSpacing = 2.sp
                 )
                 Text(
-                    text = "6.0h",
+                    text = "${formatHours(focusHours)}h",
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Bold,
                     color = DopamineWhite

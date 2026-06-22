@@ -77,6 +77,8 @@ fun DashboardScreen(
     dailyGoals: List<Goal> = emptyList(),
     weeklyGoals: List<Goal> = emptyList(),
     monthlyGoals: List<Goal> = emptyList(),
+    successRate: Int = 0,
+    bestFocusDay: String = "",
     todayFocusHours: Double = 0.0,
     todaySessionCount: Int = 0,
     onNavigate: (String) -> Unit,
@@ -132,8 +134,8 @@ fun DashboardScreen(
                         modifier = Modifier.weight(1f)
                     )
                     DashboardStatCard(
-                        value = disciplineScore.toString(),
-                        label = "Score ${disciplineRank.name}",
+                        value = successRate.toString(),
+                        label = "Success %",
                         modifier = Modifier.weight(1f)
                     )
                     DashboardStatCard(

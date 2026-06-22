@@ -134,6 +134,7 @@ fun SessionHistoryScreen(
     totalFocusHours: Double = 0.0,
     completedSessions: Int = 0,
     successRate: Int = 0,
+    averageDurationMinutes: Int = 0,
     onNavigate: (String) -> Unit
 ) {
     var selectedFilter by remember { mutableStateOf("All") }
@@ -173,13 +174,10 @@ fun SessionHistoryScreen(
             item { SessionHistoryHeader() }
             item {
                 SessionHistorySummary(
-                    totalFocusHours = if (sessions.isEmpty()) 29.2 else totalFocusHours,
-                    sessionCount = when {
-                        missions.isNotEmpty() -> missions.size
-                        sessions.isNotEmpty() -> sessions.size
-                        else -> 38
-                    },
-                    successRate = if (sessions.isEmpty()) 87 else successRate
+                    totalFocusHours = totalFocusHours,
+                    sessionCount = sessions.size.takeIf { it > 0 } ?: missions.size,
+                    successRate = successRate,
+                    averageDurationMinutes = averageDurationMinutes
                 )
             }
             item {
@@ -242,14 +240,15 @@ private fun SessionHistoryHeader() {
 private fun SessionHistorySummary(
     totalFocusHours: Double,
     sessionCount: Int,
-    successRate: Int
+    successRate: Int,
+    averageDurationMinutes: Int
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         SummaryCard(value = "${formatHours(totalFocusHours)}h", label = "Total Focus", modifier = Modifier.weight(1f))
-        SummaryCard(value = sessionCount.toString(), label = "Sessions", modifier = Modifier.weight(1f))
+        SummaryCard(value = "${averageDurationMinutes}m", label = "Avg Length", modifier = Modifier.weight(1f))
         SummaryCard(value = "$successRate%", label = "Success Rate", modifier = Modifier.weight(1f))
     }
 }
