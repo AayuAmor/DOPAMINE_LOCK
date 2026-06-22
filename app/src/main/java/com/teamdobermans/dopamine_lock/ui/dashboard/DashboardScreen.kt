@@ -57,14 +57,6 @@ import com.teamdobermans.dopamine_lock.ui.theme.DopamineWhite
 
 private data class RecentSession(val title: String, val duration: String, val time: String, val completed: Boolean)
 
-private val recentSessions = listOf(
-    RecentSession("Deep Work — Code Review", "52 min", "Today, 09:14", true),
-    RecentSession("Reading Session", "30 min", "Today, 07:30", true),
-    RecentSession("Design Sprint", "45 min", "Yesterday, 15:00", true),
-    RecentSession("Morning Focus Block", "60 min", "Yesterday, 08:00", false),
-    RecentSession("Documentation", "25 min", "2d ago, 14:20", true)
-)
-
 @Composable
 fun DashboardScreen(
     currentRoute: String = Screen.Dashboard.route,
@@ -195,20 +187,38 @@ fun DashboardScreen(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            val recent = if (sessions.isEmpty()) recentSessions else sessions
+            val recent = sessions
                 .sortedByDescending { it.startedAt }
                 .take(5)
                 .map { it.toRecentSession() }
-            items(recent.size) { index ->
-                val session = recent[index]
-                SessionListItem(session = session)
-                if (index < recent.size - 1) {
+
+            if (recent.isEmpty()) {
+                item {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(1.dp)
-                            .background(DopamineDivider)
-                    )
+                            .padding(vertical = 32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No sessions yet. Start your first mission.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = DopamineGrey
+                        )
+                    }
+                }
+            } else {
+                items(recent.size) { index ->
+                    val session = recent[index]
+                    SessionListItem(session = session)
+                    if (index < recent.size - 1) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(1.dp)
+                                .background(DopamineDivider)
+                        )
+                    }
                 }
             }
         }
