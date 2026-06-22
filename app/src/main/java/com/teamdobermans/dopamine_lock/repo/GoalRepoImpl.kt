@@ -22,7 +22,8 @@ import java.util.UUID
 class GoalRepositoryImpl(
     private val auth: FirebaseAuth,
     database: FirebaseDatabase,
-    private val disciplineRepository: DisciplineRepository? = null
+    private val disciplineRepository: DisciplineRepository? = null,
+    private val notificationRepository: NotificationRepository? = null
 ) : GoalRepository {
     private val goalsRef: DatabaseReference = database.reference.child(GOALS_PATH)
 
@@ -54,6 +55,7 @@ class GoalRepositoryImpl(
         )
 
         goalRef(uid, goalId).setValue(goal).await()
+        notificationRepository?.refreshWorkers()
         goal
     }
 
@@ -74,11 +76,13 @@ class GoalRepositoryImpl(
             }
         )
         goalRef(uid, updated.goalId).setValue(updated).await()
+        notificationRepository?.refreshWorkers()
         updated
     }
 
     override suspend fun deleteGoal(goalId: String): Result<Unit> = runCatchingGoal {
         goalRef(currentUid(), goalId).removeValue().await()
+        notificationRepository?.refreshWorkers()
     }
 
     override suspend fun completeGoal(goalId: String): Result<Goal> = runCatchingGoal {
@@ -94,6 +98,7 @@ class GoalRepositoryImpl(
         )
         goalRef(uid, goalId).setValue(completedGoal).await()
         awardGoalCompletion(completedGoal)
+        notificationRepository?.refreshWorkers()
         completedGoal
     }
 
@@ -133,9 +138,11 @@ class GoalRepositoryImpl(
                     val completedGoal = updated.copy(completed = true, completedAt = System.currentTimeMillis())
                     goalRef(uid, completedGoal.goalId).setValue(completedGoal).await()
                     awardGoalCompletion(completedGoal)
+                    notificationRepository?.refreshWorkers()
                     completedGoal
                 } else {
                     goalRef(uid, updated.goalId).setValue(updated).await()
+                    notificationRepository?.refreshWorkers()
                     updated
                 }
                 updatedGoals += savedGoal

@@ -39,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.teamdobermans.dopamine_lock.model.NotificationPreferences
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -63,14 +64,18 @@ import com.teamdobermans.dopamine_lock.ui.theme.DopamineWhite
 fun SettingsScreen(
     currentRoute: String = Screen.Settings.route,
     user: User? = null,
+    notificationPreferences: NotificationPreferences = NotificationPreferences(),
+    onNotificationPreferencesChange: (NotificationPreferences) -> Unit = {},
     onNavigate: (String) -> Unit,
     onNavigateToBlockedApps: () -> Unit = {},
     onLogout: () -> Unit
 ) {
-    var notificationsEnabled by remember { mutableStateOf(true) }
-    var missionModeReminder by remember { mutableStateOf(false) }
-    var dailyGoalReminder by remember { mutableStateOf(true) }
     var strictModeEnabled by remember { mutableStateOf(false) }
+    val notificationsEnabled = notificationPreferences.dailyGoalReminderEnabled ||
+        notificationPreferences.streakReminderEnabled ||
+        notificationPreferences.goalReminderEnabled ||
+        notificationPreferences.missionReminderEnabled ||
+        notificationPreferences.milestoneNotificationsEnabled
 
     Scaffold(
         containerColor = Color.Black,
@@ -180,23 +185,67 @@ fun SettingsScreen(
                         label = "Push Notifications",
                         subtitle = "Enable all app notifications",
                         checked = notificationsEnabled,
-                        onCheckedChange = { notificationsEnabled = it }
+                        onCheckedChange = { enabled ->
+                            onNotificationPreferencesChange(
+                                NotificationPreferences(
+                                    dailyGoalReminderEnabled = enabled,
+                                    streakReminderEnabled = enabled,
+                                    goalReminderEnabled = enabled,
+                                    missionReminderEnabled = enabled,
+                                    milestoneNotificationsEnabled = enabled
+                                )
+                            )
+                        }
                     )
                     SettingsDivider()
                     SettingsToggleRow(
                         icon = Icons.Filled.Notifications,
                         label = "Daily Goal Reminder",
                         subtitle = "Remind me to hit my daily goal",
-                        checked = dailyGoalReminder,
-                        onCheckedChange = { dailyGoalReminder = it }
+                        checked = notificationPreferences.dailyGoalReminderEnabled,
+                        onCheckedChange = {
+                            onNotificationPreferencesChange(notificationPreferences.copy(dailyGoalReminderEnabled = it))
+                        }
+                    )
+                    SettingsDivider()
+                    SettingsToggleRow(
+                        icon = Icons.Filled.Notifications,
+                        label = "Streak Protection",
+                        subtitle = "Remind me before my streak breaks",
+                        checked = notificationPreferences.streakReminderEnabled,
+                        onCheckedChange = {
+                            onNotificationPreferencesChange(notificationPreferences.copy(streakReminderEnabled = it))
+                        }
+                    )
+                    SettingsDivider()
+                    SettingsToggleRow(
+                        icon = Icons.Filled.Notifications,
+                        label = "Goal Progress",
+                        subtitle = "Remind me about unfinished goals",
+                        checked = notificationPreferences.goalReminderEnabled,
+                        onCheckedChange = {
+                            onNotificationPreferencesChange(notificationPreferences.copy(goalReminderEnabled = it))
+                        }
                     )
                     SettingsDivider()
                     SettingsToggleRow(
                         icon = Icons.Filled.Notifications,
                         label = "Mission Mode Alerts",
-                        subtitle = "Notify before entering mission",
-                        checked = missionModeReminder,
-                        onCheckedChange = { missionModeReminder = it }
+                        subtitle = "Notify when a mission is waiting",
+                        checked = notificationPreferences.missionReminderEnabled,
+                        onCheckedChange = {
+                            onNotificationPreferencesChange(notificationPreferences.copy(missionReminderEnabled = it))
+                        }
+                    )
+                    SettingsDivider()
+                    SettingsToggleRow(
+                        icon = Icons.Filled.Notifications,
+                        label = "Milestone Celebrations",
+                        subtitle = "Notify me when streak milestones unlock",
+                        checked = notificationPreferences.milestoneNotificationsEnabled,
+                        onCheckedChange = {
+                            onNotificationPreferencesChange(notificationPreferences.copy(milestoneNotificationsEnabled = it))
+                        }
                     )
                 }
             }

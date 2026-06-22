@@ -28,6 +28,7 @@ import com.teamdobermans.dopamine_lock.repo.DisciplineRepositoryImpl
 import com.teamdobermans.dopamine_lock.repo.FocusSessionRepositoryImpl
 import com.teamdobermans.dopamine_lock.repo.GoalRepositoryImpl
 import com.teamdobermans.dopamine_lock.repo.MissionRepositoryImpl
+import com.teamdobermans.dopamine_lock.repo.NotificationRepositoryImpl
 import com.teamdobermans.dopamine_lock.repo.StreakRepositoryImpl
 import com.teamdobermans.dopamine_lock.repo.UserRepositoryImpl
 import com.teamdobermans.dopamine_lock.firebase.FirebaseProvider
@@ -63,6 +64,8 @@ import com.teamdobermans.dopamine_lock.viewModel.GoalViewModel
 import com.teamdobermans.dopamine_lock.viewModel.GoalViewModelFactory
 import com.teamdobermans.dopamine_lock.viewModel.MissionViewModel
 import com.teamdobermans.dopamine_lock.viewModel.MissionViewModelFactory
+import com.teamdobermans.dopamine_lock.viewModel.NotificationViewModel
+import com.teamdobermans.dopamine_lock.viewModel.NotificationViewModelFactory
 import com.teamdobermans.dopamine_lock.viewModel.UserViewModel
 import com.teamdobermans.dopamine_lock.viewModel.UserViewModelFactory
 import kotlinx.coroutines.launch
@@ -97,16 +100,19 @@ fun AppNavigation() {
         database = FirebaseProvider.database,
         userRepository = userRepository
     )
+    val notificationRepository = NotificationRepositoryImpl(context)
     val goalRepository = GoalRepositoryImpl(
         auth = FirebaseProvider.auth,
         database = FirebaseProvider.database,
-        disciplineRepository = disciplineRepository
+        disciplineRepository = disciplineRepository,
+        notificationRepository = notificationRepository
     )
     val streakRepository = StreakRepositoryImpl(
         auth = FirebaseProvider.auth,
         database = FirebaseProvider.database,
         userRepository = userRepository,
-        disciplineRepository = disciplineRepository
+        disciplineRepository = disciplineRepository,
+        notificationRepository = notificationRepository
     )
     val focusSessionRepository = FocusSessionRepositoryImpl(
         auth = FirebaseProvider.auth,
@@ -122,7 +128,8 @@ fun AppNavigation() {
         userRepository = userRepository,
         streakRepository = streakRepository,
         disciplineRepository = disciplineRepository,
-        goalRepository = goalRepository
+        goalRepository = goalRepository,
+        notificationRepository = notificationRepository
     )
     val focusSessionViewModel: FocusSessionViewModel = viewModel(
         factory = FocusSessionViewModelFactory(focusSessionRepository)
@@ -148,6 +155,9 @@ fun AppNavigation() {
             )
         )
     )
+    val notificationViewModel: NotificationViewModel = viewModel(
+        factory = NotificationViewModelFactory(notificationRepository)
+    )
     val authUiState by authViewModel.uiState.collectAsState()
     val userUiState by userViewModel.uiState.collectAsState()
     val focusSessionUiState by focusSessionViewModel.uiState.collectAsState()
@@ -155,6 +165,7 @@ fun AppNavigation() {
     val disciplineUiState by disciplineViewModel.uiState.collectAsState()
     val goalUiState by goalViewModel.uiState.collectAsState()
     val analyticsUiState by analyticsViewModel.uiState.collectAsState()
+    val notificationUiState by notificationViewModel.uiState.collectAsState()
     val currentBackStackEntry = navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry.value?.destination?.route ?: Screen.Splash.route
 
@@ -206,6 +217,8 @@ fun AppNavigation() {
             disciplineViewModel.observeHistory()
             goalViewModel.observeGoals()
             analyticsViewModel.loadAnalytics()
+            notificationViewModel.loadPreferences()
+            notificationViewModel.scheduleNotifications()
         } else {
             userViewModel.clearUser()
             focusSessionViewModel.clear()
@@ -213,6 +226,7 @@ fun AppNavigation() {
             disciplineViewModel.clear()
             goalViewModel.clear()
             analyticsViewModel.clear()
+            notificationViewModel.clear()
         }
     }
 
@@ -619,6 +633,8 @@ fun AppNavigation() {
             SettingsScreen(
                 currentRoute = currentRoute,
                 user = userUiState.user,
+                notificationPreferences = notificationUiState.preferences,
+                onNotificationPreferencesChange = notificationViewModel::updatePreferences,
                 onNavigate = ::navigateBottomNav,
                 onNavigateToBlockedApps = {
                     navController.navigate(Screen.BlockedApps.route)

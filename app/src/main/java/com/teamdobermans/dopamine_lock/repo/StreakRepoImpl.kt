@@ -26,6 +26,7 @@ class StreakRepositoryImpl(
     database: FirebaseDatabase,
     private val userRepository: UserRepository,
     private val disciplineRepository: DisciplineRepository? = null,
+    private val notificationRepository: NotificationRepository? = null,
     private val zoneId: ZoneId = ZoneId.systemDefault()
 ) : StreakRepository {
     private val streakRecordsRef: DatabaseReference = database.reference.child(STREAK_RECORDS_PATH)
@@ -170,6 +171,7 @@ class StreakRepositoryImpl(
                 eventType = DisciplineEventType.STREAK_MILESTONE,
                 description = "$currentStreak day discipline streak"
             )
+            notificationRepository?.showMilestoneNotification(currentStreak)
         }
 
         if (previousRecord?.successful == true && !record.successful) {
