@@ -38,6 +38,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.teamdobermans.dopamine_lock.model.FocusSession
+import com.teamdobermans.dopamine_lock.model.DisciplineEvent
+import com.teamdobermans.dopamine_lock.model.DisciplineRank
 import com.teamdobermans.dopamine_lock.model.User
 import com.teamdobermans.dopamine_lock.navigation.Screen
 import com.teamdobermans.dopamine_lock.ui.components.BottomNavigationBar
@@ -68,6 +70,9 @@ fun DashboardScreen(
     currentRoute: String = Screen.Dashboard.route,
     user: User? = null,
     sessions: List<FocusSession> = emptyList(),
+    disciplineScore: Int = user?.disciplineScore ?: 0,
+    disciplineRank: DisciplineRank = DisciplineRank.D,
+    recentDisciplineEvent: DisciplineEvent? = null,
     todayFocusHours: Double = 0.0,
     todaySessionCount: Int = 0,
     onNavigate: (String) -> Unit,
@@ -119,8 +124,8 @@ fun DashboardScreen(
                         modifier = Modifier.weight(1f)
                     )
                     DashboardStatCard(
-                        value = todaySessionCount.toString(),
-                        label = "Sessions",
+                        value = disciplineScore.toString(),
+                        label = "Score ${disciplineRank.name}",
                         modifier = Modifier.weight(1f)
                     )
                     DashboardStatCard(
@@ -137,10 +142,10 @@ fun DashboardScreen(
                 SectionHeader(title = "Today's Goal")
                 Spacer(modifier = Modifier.height(12.dp))
                 FocusProgressCard(
-                    title = "Daily Focus Goal",
-                    current = 4.2f,
+                    title = recentDisciplineEvent?.description ?: "Daily Focus Goal",
+                    current = todayFocusHours.toFloat(),
                     total = 6f,
-                    unit = "hours",
+                    unit = if (recentDisciplineEvent == null) "hours" else "discipline",
                     onClick = onOpenGoalTracking
                 )
                 Spacer(modifier = Modifier.height(24.dp))

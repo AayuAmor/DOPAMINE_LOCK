@@ -8,9 +8,7 @@ import com.google.firebase.database.DatabaseException
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
-import com.teamdobermans.dopamine_lock.repo.FocusSessionRepository
-import com.teamdobermans.dopamine_lock.repo.StreakRepository
-import com.teamdobermans.dopamine_lock.repo.UserRepository
+import com.teamdobermans.dopamine_lock.model.DisciplineEventType
 import com.teamdobermans.dopamine_lock.model.FocusSession
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -22,7 +20,8 @@ class FocusSessionRepositoryImpl(
     private val auth: FirebaseAuth,
     database: FirebaseDatabase,
     private val userRepository: UserRepository,
-    private val streakRepository: StreakRepository? = null
+    private val streakRepository: StreakRepository? = null,
+    private val disciplineRepository: DisciplineRepository? = null
 ) : FocusSessionRepository {
     private val sessionsRef: DatabaseReference = database.reference.child(SESSIONS_PATH)
 
@@ -60,17 +59,25 @@ class FocusSessionRepositoryImpl(
         val uid = currentUid()
         val existing = fetchSession(uid, sessionId)
         val now = System.currentTimeMillis()
-        val xp = 20 + ((elapsedSeconds / 1800L).toInt() * 5)
+        val focusHourPoints = ((elapsedSeconds / SECONDS_PER_HOUR).toInt() * FOCUS_HOUR_REWARD)
         val updated = existing.copy(
             completed = true,
             abandoned = false,
             endedAt = now,
             elapsedSeconds = elapsedSeconds,
-            disciplineXp = xp,
+            disciplineXp = focusHourPoints,
             updatedAt = now
         )
         sessionRef(uid, sessionId).setValue(updated).await()
-        updateUserStats(elapsedSeconds, xp, applyDisciplineScore)
+        updateUserStats(elapsedSeconds)
+        if (focusHourPoints > 0) {
+            disciplineRepository?.awardPoints(
+                points = focusHourPoints,
+                eventType = DisciplineEventType.FOCUS_HOUR_COMPLETED,
+                description = "Completed ${elapsedSeconds / SECONDS_PER_HOUR} full focus hour(s).",
+                relatedSessionId = sessionId
+            )
+        }
         streakRepository?.evaluateToday()
         updated
     }
@@ -92,7 +99,7 @@ class FocusSessionRepositoryImpl(
             updatedAt = now
         )
         sessionRef(uid, sessionId).setValue(updated).await()
-        updateUserStats(elapsedSeconds = 0L, xp = -15, applyDisciplineScore = applyDisciplineScore)
+        updateUserStats(elapsedSeconds = 0L)
         streakRepository?.evaluateToday()
         updated
     }
@@ -162,22 +169,12 @@ class FocusSessionRepositoryImpl(
         sessionRef(currentUid(), sessionId).removeValue().await()
     }
 
-    private suspend fun updateUserStats(
-        elapsedSeconds: Long,
-        xp: Int,
-        applyDisciplineScore: Boolean
-    ) {
+    private suspend fun updateUserStats(elapsedSeconds: Long) {
         userRepository.getCurrentUserProfile().onSuccess { user ->
             if (elapsedSeconds > 0L) {
                 userRepository.updateTotalFocusHours(
                     uid = user.uid,
                     totalFocusHours = user.totalFocusHours + elapsedSeconds / 3600.0
-                )
-            }
-            if (applyDisciplineScore) {
-                userRepository.updateDisciplineScore(
-                    uid = user.uid,
-                    score = (user.disciplineScore + xp).coerceAtLeast(0)
                 )
             }
         }
@@ -232,5 +229,7 @@ class FocusSessionRepositoryImpl(
 
     private companion object {
         const val SESSIONS_PATH = "focusSessions"
+        const val SECONDS_PER_HOUR = 3600L
+        const val FOCUS_HOUR_REWARD = 5
     }
 }

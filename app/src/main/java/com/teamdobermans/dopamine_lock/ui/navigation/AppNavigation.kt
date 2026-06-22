@@ -20,7 +20,9 @@ import androidx.navigation.compose.rememberNavController
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.teamdobermans.dopamine_lock.BuildConfig
+import com.teamdobermans.dopamine_lock.model.DisciplineEvent
 import com.teamdobermans.dopamine_lock.repo.AuthRepositoryImpl
+import com.teamdobermans.dopamine_lock.repo.DisciplineRepositoryImpl
 import com.teamdobermans.dopamine_lock.repo.FocusSessionRepositoryImpl
 import com.teamdobermans.dopamine_lock.repo.MissionRepositoryImpl
 import com.teamdobermans.dopamine_lock.repo.StreakRepositoryImpl
@@ -48,6 +50,8 @@ import com.teamdobermans.dopamine_lock.ui.tasks.TasksScreen
 import com.teamdobermans.dopamine_lock.viewModel.AuthViewModel
 import com.teamdobermans.dopamine_lock.viewModel.AuthViewModelFactory
 import com.teamdobermans.dopamine_lock.ui.auth.AuthProvider
+import com.teamdobermans.dopamine_lock.viewModel.DisciplineViewModel
+import com.teamdobermans.dopamine_lock.viewModel.DisciplineViewModelFactory
 import com.teamdobermans.dopamine_lock.viewModel.FocusSessionViewModel
 import com.teamdobermans.dopamine_lock.viewModel.FocusSessionViewModelFactory
 import com.teamdobermans.dopamine_lock.viewModel.MissionViewModel
@@ -81,10 +85,16 @@ fun AppNavigation() {
         auth = FirebaseProvider.auth,
         database = FirebaseProvider.database
     )
-    val streakRepository = StreakRepositoryImpl(
+    val disciplineRepository = DisciplineRepositoryImpl(
         auth = FirebaseProvider.auth,
         database = FirebaseProvider.database,
         userRepository = userRepository
+    )
+    val streakRepository = StreakRepositoryImpl(
+        auth = FirebaseProvider.auth,
+        database = FirebaseProvider.database,
+        userRepository = userRepository,
+        disciplineRepository = disciplineRepository
     )
     val focusSessionViewModel: FocusSessionViewModel = viewModel(
         factory = FocusSessionViewModelFactory(
@@ -92,7 +102,8 @@ fun AppNavigation() {
                 auth = FirebaseProvider.auth,
                 database = FirebaseProvider.database,
                 userRepository = userRepository,
-                streakRepository = streakRepository
+                streakRepository = streakRepository,
+                disciplineRepository = disciplineRepository
             )
         )
     )
@@ -102,14 +113,19 @@ fun AppNavigation() {
                 auth = FirebaseProvider.auth,
                 database = FirebaseProvider.database,
                 userRepository = userRepository,
-                streakRepository = streakRepository
+                streakRepository = streakRepository,
+                disciplineRepository = disciplineRepository
             )
         )
+    )
+    val disciplineViewModel: DisciplineViewModel = viewModel(
+        factory = DisciplineViewModelFactory(disciplineRepository)
     )
     val authUiState by authViewModel.uiState.collectAsState()
     val userUiState by userViewModel.uiState.collectAsState()
     val focusSessionUiState by focusSessionViewModel.uiState.collectAsState()
     val missionUiState by missionViewModel.uiState.collectAsState()
+    val disciplineUiState by disciplineViewModel.uiState.collectAsState()
     val currentBackStackEntry = navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry.value?.destination?.route ?: Screen.Splash.route
 
@@ -156,10 +172,14 @@ fun AppNavigation() {
             focusSessionViewModel.observeActiveSession()
             missionViewModel.observeMissions()
             missionViewModel.observeActiveMission()
+            disciplineViewModel.observeScore()
+            disciplineViewModel.observeRank()
+            disciplineViewModel.observeHistory()
         } else {
             userViewModel.clearUser()
             focusSessionViewModel.clear()
             missionViewModel.clear()
+            disciplineViewModel.clear()
         }
     }
 
@@ -301,6 +321,9 @@ fun AppNavigation() {
                 currentRoute = currentRoute,
                 user = userUiState.user,
                 sessions = focusSessionUiState.sessions,
+                disciplineScore = disciplineUiState.score,
+                disciplineRank = disciplineUiState.rank,
+                recentDisciplineEvent = disciplineUiState.recentEvents.firstOrNull(),
                 todayFocusHours = focusSessionUiState.todayFocusHours,
                 todaySessionCount = focusSessionUiState.todaySessionCount,
                 onNavigate = ::navigateBottomNav,
@@ -459,6 +482,11 @@ fun AppNavigation() {
                 completedSessions = focusSessionUiState.completedSessions,
                 successRate = focusSessionUiState.successRate,
                 weeklyFocusHours = focusSessionUiState.weeklyFocusHours,
+                disciplineScore = disciplineUiState.score,
+                disciplineRank = disciplineUiState.rank,
+                averageDailyDisciplineGain = averageDailyDisciplineGain(disciplineUiState.events),
+                mostValuableHabit = mostValuableHabit(disciplineUiState.events),
+                scoreGrowthTrend = scoreGrowthTrend(disciplineUiState.events, disciplineUiState.score),
                 onNavigate = ::navigateBottomNav,
                 onOpenStreakCalendar = {
                     navController.navigate(Screen.StreakCalendar.route)
@@ -496,6 +524,9 @@ fun AppNavigation() {
             DisciplineScoreScreen(
                 currentRoute = Screen.Analytics.route,
                 user = userUiState.user,
+                disciplineScore = disciplineUiState.score,
+                disciplineRank = disciplineUiState.rank,
+                events = disciplineUiState.events,
                 onNavigate = ::navigateBottomNav,
                 onViewStreakCalendar = {
                     navController.navigate(Screen.StreakCalendar.route)
@@ -541,3 +572,43 @@ fun AppNavigation() {
         }
     }
 }
+
+private fun averageDailyDisciplineGain(events: List<DisciplineEvent>): Int {
+    if (events.isEmpty()) return 0
+    val dayCount = events.map { it.createdAt / DAY_MS }.distinct().size.coerceAtLeast(1)
+    return events.sumOf { it.points }.coerceAtLeast(0) / dayCount
+}
+
+private fun mostValuableHabit(events: List<DisciplineEvent>): String {
+    return events
+        .groupBy { it.eventType }
+        .maxByOrNull { entry -> entry.value.sumOf { it.points } }
+        ?.key
+        ?.let(::eventTypeLabel)
+        ?: "No discipline events yet"
+}
+
+private fun scoreGrowthTrend(events: List<DisciplineEvent>, currentScore: Int): List<Float> {
+    if (events.isEmpty()) return emptyList()
+
+    val dailyTotals = events
+        .groupBy { it.createdAt / DAY_MS }
+        .toSortedMap()
+        .values
+        .map { dayEvents -> dayEvents.sumOf { it.points } }
+        .takeLast(30)
+
+    var runningScore = (currentScore - dailyTotals.sum()).coerceAtLeast(0)
+    return dailyTotals.map { points ->
+        runningScore = (runningScore + points).coerceAtLeast(0)
+        runningScore.toFloat()
+    }
+}
+
+private fun eventTypeLabel(type: String): String {
+    return type.lowercase()
+        .split("_")
+        .joinToString(" ") { word -> word.replaceFirstChar { it.uppercase() } }
+}
+
+private const val DAY_MS = 24 * 60 * 60 * 1000L

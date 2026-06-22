@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.teamdobermans.dopamine_lock.model.FocusSession
+import com.teamdobermans.dopamine_lock.model.DisciplineRank
 import com.teamdobermans.dopamine_lock.navigation.Screen
 import com.teamdobermans.dopamine_lock.ui.components.BottomNavigationBar
 import com.teamdobermans.dopamine_lock.ui.components.DashboardStatCard
@@ -83,6 +84,11 @@ fun AnalyticsScreen(
     completedSessions: Int = 0,
     successRate: Int = 0,
     weeklyFocusHours: List<Float> = List(7) { 0f },
+    disciplineScore: Int = 0,
+    disciplineRank: DisciplineRank = DisciplineRank.D,
+    averageDailyDisciplineGain: Int = 0,
+    mostValuableHabit: String = "No discipline events yet",
+    scoreGrowthTrend: List<Float> = emptyList(),
     onNavigate: (String) -> Unit,
     onOpenStreakCalendar: () -> Unit = {},
     onOpenDisciplineScore: () -> Unit = {}
@@ -139,17 +145,23 @@ fun AnalyticsScreen(
                         modifier = Modifier.weight(1f)
                     )
                     DashboardStatCard(
-                        value = successRate.toString(),
-                        label = "Success %",
+                        value = disciplineScore.toString(),
+                        label = "Score ${disciplineRank.name}",
                         modifier = Modifier.weight(1f),
-                        onClick = onOpenStreakCalendar
+                        onClick = onOpenDisciplineScore
                     )
                 }
                 Spacer(modifier = Modifier.height(28.dp))
             }
 
             item {
-                DisciplineScoreEntryCard(onClick = onOpenDisciplineScore)
+                DisciplineScoreEntryCard(
+                    score = disciplineScore,
+                    rank = disciplineRank,
+                    averageDailyGain = averageDailyDisciplineGain,
+                    mostValuableHabit = mostValuableHabit,
+                    onClick = onOpenDisciplineScore
+                )
                 Spacer(modifier = Modifier.height(28.dp))
             }
 
@@ -165,7 +177,7 @@ fun AnalyticsScreen(
             item {
                 SectionHeader(title = "Monthly Trend")
                 Spacer(modifier = Modifier.height(16.dp))
-                MonthlyLineChart(data = monthlyData)
+                MonthlyLineChart(data = scoreGrowthTrend.takeIf { it.size > 1 } ?: monthlyData)
                 Spacer(modifier = Modifier.height(28.dp))
             }
 
@@ -412,7 +424,13 @@ private fun BestDayCard() {
 }
 
 @Composable
-private fun DisciplineScoreEntryCard(onClick: () -> Unit) {
+private fun DisciplineScoreEntryCard(
+    score: Int,
+    rank: DisciplineRank,
+    averageDailyGain: Int,
+    mostValuableHabit: String,
+    onClick: () -> Unit
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -435,13 +453,13 @@ private fun DisciplineScoreEntryCard(onClick: () -> Unit) {
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "A RANK",
+                    text = "${rank.name} RANK · $score XP",
                     style = MaterialTheme.typography.titleMedium,
                     color = DopamineWhite,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "Top 12% consistency",
+                    text = "+$averageDailyGain avg/day · $mostValuableHabit",
                     style = MaterialTheme.typography.bodySmall,
                     color = DopamineGrey
                 )

@@ -8,9 +8,7 @@ import com.google.firebase.database.DatabaseException
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
-import com.teamdobermans.dopamine_lock.repo.MissionRepository
-import com.teamdobermans.dopamine_lock.repo.StreakRepository
-import com.teamdobermans.dopamine_lock.repo.UserRepository
+import com.teamdobermans.dopamine_lock.model.DisciplineEventType
 import com.teamdobermans.dopamine_lock.model.Mission
 import com.teamdobermans.dopamine_lock.model.MissionStatus
 import kotlinx.coroutines.channels.awaitClose
@@ -23,7 +21,8 @@ class MissionRepositoryImpl(
     private val auth: FirebaseAuth,
     database: FirebaseDatabase,
     private val userRepository: UserRepository,
-    private val streakRepository: StreakRepository? = null
+    private val streakRepository: StreakRepository? = null,
+    private val disciplineRepository: DisciplineRepository? = null
 ) : MissionRepository {
     private val missionsRef: DatabaseReference = database.reference.child(MISSIONS_PATH)
 
@@ -168,21 +167,34 @@ class MissionRepositoryImpl(
         )
         missionRef(uid, missionId).setValue(updated).await()
 
-        val scoreDelta = reward - penalty
-        if (scoreDelta != 0) {
-            updateDisciplineScore(scoreDelta)
-        }
+        applyDisciplineEvent(updated)
 
         streakRepository?.evaluateToday()
         return updated
     }
 
-    private suspend fun updateDisciplineScore(delta: Int) {
-        userRepository.getCurrentUserProfile().onSuccess { user ->
-            userRepository.updateDisciplineScore(
-                uid = user.uid,
-                score = (user.disciplineScore + delta).coerceAtLeast(0)
+    private suspend fun applyDisciplineEvent(mission: Mission) {
+        when (mission.status) {
+            MissionStatus.COMPLETED -> disciplineRepository?.awardPoints(
+                points = COMPLETION_REWARD,
+                eventType = DisciplineEventType.MISSION_COMPLETED,
+                description = "Mission completed: ${mission.title}",
+                relatedMissionId = mission.missionId
             )
+            MissionStatus.ABANDONED -> disciplineRepository?.deductPoints(
+                points = ABANDON_PENALTY,
+                eventType = DisciplineEventType.MISSION_ABANDONED,
+                description = "Mission abandoned: ${mission.title}",
+                relatedMissionId = mission.missionId
+            )
+            MissionStatus.FAILED -> disciplineRepository?.deductPoints(
+                points = FAILURE_PENALTY,
+                eventType = DisciplineEventType.MISSION_FAILED,
+                description = "Mission failed: ${mission.title}",
+                relatedMissionId = mission.missionId
+            )
+            MissionStatus.CREATED,
+            MissionStatus.ACTIVE -> Unit
         }
     }
 
@@ -259,7 +271,7 @@ class MissionRepositoryImpl(
 
     private companion object {
         const val MISSIONS_PATH = "missions"
-        const val COMPLETION_REWARD = 25
+        const val COMPLETION_REWARD = 20
         const val ABANDON_PENALTY = 15
         const val FAILURE_PENALTY = 25
 

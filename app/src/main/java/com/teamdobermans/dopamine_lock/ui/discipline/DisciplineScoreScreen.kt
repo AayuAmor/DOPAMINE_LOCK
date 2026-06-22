@@ -35,6 +35,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.teamdobermans.dopamine_lock.model.DisciplineEvent
+import com.teamdobermans.dopamine_lock.model.DisciplineEventType
+import com.teamdobermans.dopamine_lock.model.DisciplineRank
 import com.teamdobermans.dopamine_lock.model.User
 import com.teamdobermans.dopamine_lock.navigation.Screen
 import com.teamdobermans.dopamine_lock.ui.components.BottomNavigationBar
@@ -50,24 +53,19 @@ import com.teamdobermans.dopamine_lock.ui.theme.DopamineError
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineGrey
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineSurface
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineWhite
+import com.teamdobermans.dopamine_lock.util.DisciplineRankCalculator
 
 private data class ScoreBreakdown(val label: String, val points: Int)
 
-private val rankLadder = listOf("D", "C", "B", "A", "S", "S+")
-private val trendValues = listOf(720, 745, 760, 790, 812, 840, 862)
-private val achievements = listOf("7-Day Chain", "Deep Work Beast", "Distraction Resister", "Mission Finisher")
-private val scoreBreakdown = listOf(
-    ScoreBreakdown("Mission Completion", 420),
-    ScoreBreakdown("Streak Strength", 210),
-    ScoreBreakdown("Deep Work Hours", 160),
-    ScoreBreakdown("Distractions Resisted", 90),
-    ScoreBreakdown("Failed Missions", -18)
-)
+private val rankLadder = DisciplineRank.entries.map { it.name }
 
 @Composable
 fun DisciplineScoreScreen(
     currentRoute: String = Screen.Analytics.route,
     user: User? = null,
+    disciplineScore: Int = user?.disciplineScore ?: 0,
+    disciplineRank: DisciplineRank = DisciplineRankCalculator.calculateRank(disciplineScore),
+    events: List<DisciplineEvent> = emptyList(),
     onNavigate: (String) -> Unit,
     onViewStreakCalendar: () -> Unit,
     onStartMission: () -> Unit
@@ -91,11 +89,11 @@ fun DisciplineScoreScreen(
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             item { DisciplineScoreHeader() }
-            item { DisciplineHeroCard(score = user?.disciplineScore ?: 0) }
-            item { RankProgressSection(score = user?.disciplineScore ?: 0) }
-            item { ScoreBreakdownCard() }
-            item { DisciplineTrendCard() }
-            item { AchievementBadgesSection() }
+            item { DisciplineHeroCard(score = disciplineScore, rank = disciplineRank) }
+            item { RankProgressSection(score = disciplineScore, rank = disciplineRank) }
+            item { ScoreBreakdownCard(items = eventBreakdown(events)) }
+            item { DisciplineTrendCard(values = scoreTrend(events, disciplineScore)) }
+            item { AchievementBadgesSection(achievements = achievementBadges(events)) }
             item { IdentityShiftCard() }
             item {
                 DisciplineScoreActions(
@@ -128,10 +126,10 @@ private fun DisciplineScoreHeader() {
 }
 
 @Composable
-private fun DisciplineHeroCard(score: Int) {
-    val rank = rankForScore(score)
+private fun DisciplineHeroCard(score: Int, rank: DisciplineRank) {
     val nextRankTarget = nextRankTarget(score)
-    val progress = (score.toFloat() / nextRankTarget.toFloat()).coerceIn(0f, 1f)
+    val rankFloor = DisciplineRankCalculator.currentRankFloor(score)
+    val progress = ((score - rankFloor).toFloat() / (nextRankTarget - rankFloor).coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
 
     DopamineCard {
         Row(
@@ -147,7 +145,7 @@ private fun DisciplineHeroCard(score: Int) {
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "$rank RANK",
+                    text = "${rank.name} RANK",
                     style = MaterialTheme.typography.labelLarge,
                     color = DopamineWhite,
                     fontWeight = FontWeight.Bold,
@@ -174,9 +172,8 @@ private fun DisciplineHeroCard(score: Int) {
 }
 
 @Composable
-private fun RankProgressSection(score: Int) {
-    val rank = rankForScore(score)
-    val nextRank = nextRankForScore(score)
+private fun RankProgressSection(score: Int, rank: DisciplineRank) {
+    val nextRank = DisciplineRankCalculator.nextRank(score)?.name ?: "MAX"
     val needed = (nextRankTarget(score) - score).coerceAtLeast(0)
 
     DopamineCard {
@@ -186,27 +183,27 @@ private fun RankProgressSection(score: Int) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            RankMetric("CURRENT", rank)
+            RankMetric("CURRENT", rank.name)
             RankMetric("NEXT", nextRank)
             RankMetric("NEEDED", "$needed XP")
         }
         Spacer(modifier = Modifier.height(18.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             items(rankLadder) { rank ->
-                RankBadge(rank = rank, selected = rank == rankForScore(score))
+                RankBadge(rank = rank, selected = rank == DisciplineRankCalculator.calculateRank(score).name)
             }
         }
     }
 }
 
 @Composable
-private fun ScoreBreakdownCard() {
+private fun ScoreBreakdownCard(items: List<ScoreBreakdown>) {
     DopamineCard {
         SectionLabel("SCORE BREAKDOWN")
         Spacer(modifier = Modifier.height(12.dp))
-        scoreBreakdown.forEachIndexed { index, item ->
+        items.forEachIndexed { index, item ->
             ScoreBreakdownRow(item)
-            if (index < scoreBreakdown.lastIndex) {
+            if (index < items.lastIndex) {
                 Spacer(modifier = Modifier.height(12.dp))
             }
         }
@@ -214,16 +211,16 @@ private fun ScoreBreakdownCard() {
 }
 
 @Composable
-private fun DisciplineTrendCard() {
+private fun DisciplineTrendCard(values: List<Int>) {
     DopamineCard {
         SectionLabel("7-DAY SCORE TREND")
         Spacer(modifier = Modifier.height(16.dp))
-        TrendLineChart(values = trendValues)
+        TrendLineChart(values = values)
     }
 }
 
 @Composable
-private fun AchievementBadgesSection() {
+private fun AchievementBadgesSection(achievements: List<String>) {
     Column {
         SectionLabel("ACHIEVEMENT BADGES")
         Spacer(modifier = Modifier.height(10.dp))
@@ -305,38 +302,55 @@ private fun ScoreArc(progress: Float) {
     }
 }
 
-private fun rankForScore(score: Int): String {
-    return when {
-        score >= 1200 -> "S+"
-        score >= 1000 -> "S"
-        score >= 750 -> "A"
-        score >= 500 -> "B"
-        score >= 250 -> "C"
-        else -> "D"
-    }
-}
-
-private fun nextRankForScore(score: Int): String {
-    return when {
-        score >= 1200 -> "MAX"
-        score >= 1000 -> "S+"
-        score >= 750 -> "S"
-        score >= 500 -> "A"
-        score >= 250 -> "B"
-        else -> "C"
-    }
-}
-
 private fun nextRankTarget(score: Int): Int {
-    return when {
-        score >= 1200 -> 1200
-        score >= 1000 -> 1200
-        score >= 750 -> 1000
-        score >= 500 -> 750
-        score >= 250 -> 500
-        else -> 250
+    return DisciplineRankCalculator.nextRankTarget(score)
+}
+
+private fun eventBreakdown(events: List<DisciplineEvent>): List<ScoreBreakdown> {
+    if (events.isEmpty()) return listOf(ScoreBreakdown("No discipline events yet", 0))
+
+    return events
+        .groupBy { it.eventType }
+        .map { (type, groupedEvents) ->
+            ScoreBreakdown(label = eventTypeLabel(type), points = groupedEvents.sumOf { it.points })
+        }
+        .sortedByDescending { it.points }
+}
+
+private fun achievementBadges(events: List<DisciplineEvent>): List<String> {
+    val milestones = events
+        .filter { it.eventType == DisciplineEventType.STREAK_MILESTONE.name }
+        .map { it.description.ifBlank { "Streak Milestone" } }
+
+    return (milestones + listOf("Mission Finisher", "Focus Builder")).distinct().take(4)
+}
+
+private fun scoreTrend(events: List<DisciplineEvent>, currentScore: Int): List<Int> {
+    if (events.isEmpty()) return List(7) { currentScore }
+
+    val dailyTotals = events
+        .groupBy { it.createdAt / DAY_MS }
+        .toSortedMap()
+        .values
+        .map { dayEvents -> dayEvents.sumOf { it.points } }
+        .takeLast(7)
+
+    var runningScore = (currentScore - dailyTotals.sum()).coerceAtLeast(0)
+    return dailyTotals.map { points ->
+        runningScore = (runningScore + points).coerceAtLeast(0)
+        runningScore
+    }.let { values ->
+        if (values.size >= 2) values else List(7) { currentScore }
     }
 }
+
+private fun eventTypeLabel(type: String): String {
+    return type.lowercase()
+        .split("_")
+        .joinToString(" ") { word -> word.replaceFirstChar { it.uppercase() } }
+}
+
+private const val DAY_MS = 24 * 60 * 60 * 1000L
 
 @Composable
 private fun TrendLineChart(values: List<Int>) {

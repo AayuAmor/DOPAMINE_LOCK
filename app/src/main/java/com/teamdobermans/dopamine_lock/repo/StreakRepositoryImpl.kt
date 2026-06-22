@@ -8,8 +8,7 @@ import com.google.firebase.database.DatabaseException
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
-import com.teamdobermans.dopamine_lock.repo.StreakRepository
-import com.teamdobermans.dopamine_lock.repo.UserRepository
+import com.teamdobermans.dopamine_lock.model.DisciplineEventType
 import com.teamdobermans.dopamine_lock.model.FocusSession
 import com.teamdobermans.dopamine_lock.model.Mission
 import com.teamdobermans.dopamine_lock.model.MissionStatus
@@ -26,6 +25,7 @@ class StreakRepositoryImpl(
     private val auth: FirebaseAuth,
     database: FirebaseDatabase,
     private val userRepository: UserRepository,
+    private val disciplineRepository: DisciplineRepository? = null,
     private val zoneId: ZoneId = ZoneId.systemDefault()
 ) : StreakRepository {
     private val streakRecordsRef: DatabaseReference = database.reference.child(STREAK_RECORDS_PATH)
@@ -36,6 +36,8 @@ class StreakRepositoryImpl(
         val uid = currentUid()
         val today = LocalDate.now(zoneId)
         val dateKey = today.toString()
+        val previousRecords = fetchRecords(uid)
+        val previousCurrentStreak = calculateCurrentStreak(previousRecords)
         val missionsCompleted = fetchMissions(uid)
             .count { it.status == MissionStatus.COMPLETED && isSameDate(it.completedAt, today) }
         val completedSessions = fetchSessions(uid)
@@ -58,7 +60,13 @@ class StreakRepositoryImpl(
         )
 
         streakRecordsRef.child(uid).child(dateKey).setValue(record).await()
-        updateUserStreaks(uid)
+        val currentStreak = updateUserStreaks(uid)
+        applyDisciplineEvents(
+            record = record,
+            previousRecord = existing,
+            previousCurrentStreak = previousCurrentStreak,
+            currentStreak = currentStreak
+        )
         record
     }
 
@@ -126,7 +134,7 @@ class StreakRepositoryImpl(
         awaitClose { ref.removeEventListener(listener) }
     }
 
-    private suspend fun updateUserStreaks(uid: String) {
+    private suspend fun updateUserStreaks(uid: String): Int {
         val records = fetchRecords(uid)
         val currentStreak = calculateCurrentStreak(records)
         val calculatedBestStreak = calculateBestStreak(records)
@@ -137,6 +145,40 @@ class StreakRepositoryImpl(
             currentStreak = currentStreak,
             bestStreak = maxOf(existingBestStreak, calculatedBestStreak)
         ).getOrThrow()
+
+        return currentStreak
+    }
+
+    private suspend fun applyDisciplineEvents(
+        record: StreakRecord,
+        previousRecord: StreakRecord?,
+        previousCurrentStreak: Int,
+        currentStreak: Int
+    ) {
+        if (record.successful && previousRecord?.successful != true) {
+            disciplineRepository?.awardPoints(
+                points = DAILY_GOAL_REWARD,
+                eventType = DisciplineEventType.DAILY_GOAL_COMPLETED,
+                description = "Daily discipline goal completed: ${record.date}"
+            )
+        }
+
+        val milestoneReward = STREAK_MILESTONE_REWARDS[currentStreak]
+        if (record.successful && milestoneReward != null && previousCurrentStreak < currentStreak) {
+            disciplineRepository?.awardPoints(
+                points = milestoneReward,
+                eventType = DisciplineEventType.STREAK_MILESTONE,
+                description = "$currentStreak day discipline streak"
+            )
+        }
+
+        if (previousRecord?.successful == true && !record.successful) {
+            disciplineRepository?.deductPoints(
+                points = BROKEN_STREAK_PENALTY,
+                eventType = DisciplineEventType.STREAK_BROKEN,
+                description = "Discipline streak broken: ${record.date}"
+            )
+        }
     }
 
     private fun calculateCurrentStreak(records: List<StreakRecord>): Int {
@@ -231,5 +273,15 @@ class StreakRepositoryImpl(
         const val SESSIONS_PATH = "focusSessions"
         const val DEFAULT_DAILY_GOAL_MINUTES = 25
         const val SECONDS_PER_MINUTE = 60L
+        const val DAILY_GOAL_REWARD = 10
+        const val BROKEN_STREAK_PENALTY = 50
+
+        val STREAK_MILESTONE_REWARDS = mapOf(
+            7 to 50,
+            14 to 100,
+            30 to 250,
+            60 to 500,
+            100 to 1000
+        )
     }
 }
