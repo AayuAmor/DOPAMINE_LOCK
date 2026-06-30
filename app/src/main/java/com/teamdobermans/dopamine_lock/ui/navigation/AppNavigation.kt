@@ -1,5 +1,6 @@
 package com.teamdobermans.dopamine_lock.navigation
 
+import android.app.Activity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -249,23 +250,28 @@ fun AppNavigation(
             "blocked_app_overlay" -> navController.navigate(Screen.BlockedAppOverlay.route) {
                 launchSingleTop = true
             }
+
             Screen.MissionHome.route,
             Screen.Mission.route,
             "mission" -> navController.navigate(Screen.MissionHome.route) {
                 launchSingleTop = true
             }
+
             Screen.Dashboard.route,
             "dashboard" -> navController.navigate(Screen.Dashboard.route) {
                 launchSingleTop = true
             }
+
             Screen.CreateMission.route,
             "create_mission" -> navController.navigate(Screen.CreateMission.route) {
                 launchSingleTop = true
             }
+
             Screen.GoalTracking.route,
             "goal_tracking" -> navController.navigate(Screen.GoalTracking.route) {
                 launchSingleTop = true
             }
+
             Screen.DisciplineScore.route,
             "discipline_score" -> navController.navigate(Screen.DisciplineScore.route) {
                 launchSingleTop = true
@@ -344,6 +350,8 @@ fun AppNavigation(
         }
     }
 
+    fun currentActivity(): Activity? = context as? Activity
+
     fun launchGoogleSignIn() {
         if (BuildConfig.GOOGLE_WEB_CLIENT_ID.isBlank()) {
             authViewModel.setError("Google Sign-In is not configured.")
@@ -381,6 +389,15 @@ fun AppNavigation(
                 authViewModel.setError(message)
             }
         }
+    }
+
+    fun launchGitHubSignIn() {
+        val activity = currentActivity()
+        if (activity == null) {
+            authViewModel.setError("GitHub Sign-In is unavailable on this device.")
+            return
+        }
+        authViewModel.githubSignIn(activity)
     }
 
     NavHost(
@@ -433,7 +450,7 @@ fun AppNavigation(
                 authUiState = authUiState,
                 onLogin = authViewModel::login,
                 onGoogleSignInClick = ::launchGoogleSignIn,
-                onGitHubSignInClick = authViewModel::githubSignIn,
+                onGitHubSignInClick = ::launchGitHubSignIn,
                 onClearMessages = authViewModel::clearMessages
             )
         }
@@ -451,7 +468,7 @@ fun AppNavigation(
                 authUiState = authUiState,
                 onRegister = authViewModel::register,
                 onGoogleSignInClick = ::launchGoogleSignIn,
-                onGitHubSignInClick = authViewModel::githubSignIn,
+                onGitHubSignInClick = ::launchGitHubSignIn,
                 onClearMessages = authViewModel::clearMessages
             )
         }
@@ -512,12 +529,11 @@ fun AppNavigation(
                 onManageApps = {
                     navController.navigate(Screen.BlockedApps.route)
                 },
-                onStartMission = {
-                    missionName,
-                    missionGoal,
-                    missionType,
-                    durationMinutes,
-                    blockedApps ->
+                onStartMission = { missionName,
+                                   missionGoal,
+                                   missionType,
+                                   durationMinutes,
+                                   blockedApps ->
                     missionViewModel.createMission(
                         title = missionName,
                         goal = missionGoal,
@@ -580,31 +596,41 @@ fun AppNavigation(
                     }
                 },
                 onCompleteSession = { sessionId, elapsedSeconds ->
-                    val hasMissionReward = missionUiState.activeMission?.missionId?.isNotBlank() == true
+                    val activeMissionId = missionUiState.activeMission?.missionId?.takeIf { it.isNotBlank() }
                     focusSessionViewModel.completeSession(
                         sessionId = sessionId,
                         elapsedSeconds = elapsedSeconds,
-                        applyDisciplineScore = !hasMissionReward
+                        applyDisciplineScore = activeMissionId == null
                     )
-                    missionUiState.activeMission?.missionId?.takeIf { it.isNotBlank() }?.let {
-                        missionViewModel.completeMission(it)
-                    }
-                    navController.navigate(Screen.MissionResult.createRoute(sessionId, "completed")) {
-                        popUpTo(Screen.Focus.route) { inclusive = true }
+                    if (activeMissionId != null) {
+                        missionViewModel.completeMission(activeMissionId)
+                        navController.navigate(Screen.MissionResult.createRoute(sessionId, "completed")) {
+                            popUpTo(Screen.MissionHome.route) { inclusive = false }
+                        }
+                    } else {
+                        navController.navigate(Screen.Focus.route) {
+                            popUpTo(Screen.Focus.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
                     }
                 },
                 onAbandonSession = { sessionId, elapsedSeconds ->
-                    val hasMissionPenalty = missionUiState.activeMission?.missionId?.isNotBlank() == true
+                    val activeMissionId = missionUiState.activeMission?.missionId?.takeIf { it.isNotBlank() }
                     focusSessionViewModel.abandonSession(
                         sessionId = sessionId,
                         elapsedSeconds = elapsedSeconds,
-                        applyDisciplineScore = !hasMissionPenalty
+                        applyDisciplineScore = activeMissionId == null
                     )
-                    missionUiState.activeMission?.missionId?.takeIf { it.isNotBlank() }?.let {
-                        missionViewModel.abandonMission(it)
-                    }
-                    navController.navigate(Screen.MissionResult.createRoute(sessionId, "abandoned")) {
-                        popUpTo(Screen.Focus.route) { inclusive = true }
+                    if (activeMissionId != null) {
+                        missionViewModel.abandonMission(activeMissionId)
+                        navController.navigate(Screen.MissionResult.createRoute(sessionId, "abandoned")) {
+                            popUpTo(Screen.MissionHome.route) { inclusive = false }
+                        }
+                    } else {
+                        navController.navigate(Screen.Focus.route) {
+                            popUpTo(Screen.Focus.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
                     }
                 }
             )
@@ -726,7 +752,9 @@ fun AppNavigation(
             val blockedAppName = resolveAppName(context, blockedPackage)
             BlockedAppOverlayScreen(
                 blockedAppName = blockedAppName,
-                missionTitle = enforcementState.missionTitle.ifBlank { missionUiState.activeMission?.title ?: "Mission Active" },
+                missionTitle = enforcementState.missionTitle.ifBlank {
+                    missionUiState.activeMission?.title ?: "Mission Active"
+                },
                 remainingText = remainingMissionText(enforcementState.startedAt, enforcementState.durationMinutes),
                 blockedAppsCount = enforcementState.blockedApps.size,
                 onReturnToMission = {
@@ -739,8 +767,8 @@ fun AppNavigation(
                     (missionUiState.activeMission?.missionId ?: enforcementState.missionId)
                         .takeIf { it.isNotBlank() }
                         ?.let { missionId ->
-                        missionViewModel.abandonMission(missionId)
-                    }
+                            missionViewModel.abandonMission(missionId)
+                        }
                     navController.navigate(Screen.MissionHome.route) {
                         popUpTo(Screen.MissionHome.route) { inclusive = false }
                     }
@@ -892,6 +920,9 @@ fun AppNavigation(
                 onNavigate = ::navigateBottomNav,
                 onNavigateToBlockedApps = {
                     navController.navigate(Screen.BlockedApps.route)
+                },
+                onChangePassword = {
+                    navController.navigate(Screen.ForgotPassword.route)
                 },
                 onLogout = {
                     authViewModel.logout()

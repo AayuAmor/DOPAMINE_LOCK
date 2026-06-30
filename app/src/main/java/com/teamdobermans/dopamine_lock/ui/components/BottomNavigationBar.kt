@@ -13,7 +13,9 @@ import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -49,6 +51,15 @@ private val bottomNavItems = listOf(
     BottomNavItem(Screen.Settings.route, "Settings", Icons.Filled.Settings, Icons.Outlined.Settings)
 )
 
+private val missionTabRoutes = setOf(
+    Screen.MissionHome.route,
+    Screen.CreateMission.route,
+    Screen.MissionTimer.route,
+    Screen.Mission.route,
+    Screen.MissionHistory.route,
+    Screen.BlockedApps.route
+)
+
 @Composable
 fun BottomNavigationBar(
     currentRoute: String,
@@ -56,25 +67,29 @@ fun BottomNavigationBar(
 ) {
     HorizontalDivider(color = DopamineBorder, thickness = 1.dp)
     NavigationBar(
-        modifier = Modifier.navigationBarsPadding(),
+        modifier = Modifier
+            .height(64.dp)
+            .navigationBarsPadding(),
         containerColor = DopamineSurface,
         tonalElevation = 0.dp
     ) {
         bottomNavItems.forEach { item ->
-            val selected = currentRoute == item.route
+            val selected = currentRoute == item.route ||
+                    (item.route == Screen.MissionHome.route && currentRoute in missionTabRoutes)
             NavigationBarItem(
                 selected = selected,
                 onClick = { onNavigate(item.route) },
                 icon = {
                     Icon(
                         imageVector = if (selected) item.selectedIcon else item.unselectedIcon,
-                        contentDescription = item.label
+                        contentDescription = item.label,
+                        modifier = Modifier.size(19.dp)
                     )
                 },
                 label = {
                     Text(
                         text = item.label,
-                        fontSize = 9.sp,
+                        fontSize = 8.sp,
                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                         letterSpacing = 0.sp
                     )

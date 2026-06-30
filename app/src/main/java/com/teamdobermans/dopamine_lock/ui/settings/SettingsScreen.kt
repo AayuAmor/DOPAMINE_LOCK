@@ -78,15 +78,16 @@ fun SettingsScreen(
     onOpenNotificationSettings: () -> Unit = {},
     onNavigate: (String) -> Unit,
     onNavigateToBlockedApps: () -> Unit = {},
+    onChangePassword: () -> Unit = {},
     onLogout: () -> Unit
 ) {
     val enforcementSettings = enforcementUiState.settings
     val permissionStatus = enforcementUiState.permissionStatus
     val notificationsEnabled = notificationPreferences.dailyGoalReminderEnabled ||
-        notificationPreferences.streakReminderEnabled ||
-        notificationPreferences.goalReminderEnabled ||
-        notificationPreferences.missionReminderEnabled ||
-        notificationPreferences.milestoneNotificationsEnabled
+            notificationPreferences.streakReminderEnabled ||
+            notificationPreferences.goalReminderEnabled ||
+            notificationPreferences.missionReminderEnabled ||
+            notificationPreferences.milestoneNotificationsEnabled
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     val showComingSoon: (String) -> Unit = { msg ->
@@ -146,7 +147,7 @@ fun SettingsScreen(
                     SettingsNavigationRow(
                         icon = Icons.Filled.Key,
                         label = "Change Password",
-                        onClick = { showComingSoon("Change Password — coming soon") }
+                        onClick = onChangePassword
                     )
                     SettingsDivider()
                     SettingsNavigationRow(
@@ -175,15 +176,15 @@ fun SettingsScreen(
                     SettingsNavigationRow(
                         icon = Icons.Filled.Timer,
                         label = "Default Session Length",
-                        trailing = "25 min",
-                        onClick = { showComingSoon("Custom session length — coming soon") }
+                        trailing = "Focus tab",
+                        onClick = { onNavigate(Screen.Focus.route) }
                     )
                     SettingsDivider()
                     SettingsNavigationRow(
                         icon = Icons.Filled.Timer,
                         label = "Break Duration",
-                        trailing = "5 min",
-                        onClick = { showComingSoon("Custom break duration — coming soon") }
+                        trailing = "Focus tab",
+                        onClick = { onNavigate(Screen.Focus.route) }
                     )
                     SettingsDivider()
                     SettingsNavigationRow(

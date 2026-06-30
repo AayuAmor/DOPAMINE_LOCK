@@ -1,5 +1,6 @@
 package com.teamdobermans.dopamine_lock.viewModel
 
+import android.app.Activity
 import android.util.Patterns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -110,14 +111,17 @@ class AuthViewModel(
         }
     }
 
-    fun githubSignIn() {
+    fun githubSignIn(activity: Activity) {
         _uiState.update {
             it.copy(
-                isLoading = false,
-                loadingProvider = null,
-                errorMessage = "GitHub sign-in is not available yet.",
+                isLoading = true,
+                loadingProvider = com.teamdobermans.dopamine_lock.ui.auth.AuthProvider.GitHub,
+                errorMessage = null,
                 successMessage = null
             )
+        }
+        runAuthAction {
+            authRepository.signInWithGitHub(activity)
         }
     }
 
@@ -137,16 +141,12 @@ class AuthViewModel(
                         hasCheckedAuthState = true
                     )
                 }
-                .onFailure {
-                    // Profile not in DB yet (e.g. first Google sign-in race); fall back to auth data
+                .onFailure { exception ->
+                    authRepository.logout()
                     _uiState.value = AuthUiState(
-                        isAuthenticated = true,
-                        user = User(
-                            uid = firebaseUser.uid,
-                            name = firebaseUser.displayName.orEmpty(),
-                            email = firebaseUser.email.orEmpty()
-                        ),
-                        hasCheckedAuthState = true
+                        isAuthenticated = false,
+                        hasCheckedAuthState = true,
+                        errorMessage = exception.message ?: "Unable to restore your session. Please sign in again."
                     )
                 }
         }
@@ -157,7 +157,14 @@ class AuthViewModel(
     }
 
     fun clearMessages() {
-        _uiState.update { it.copy(errorMessage = null, successMessage = null, loadingProvider = null, isLoading = false) }
+        _uiState.update {
+            it.copy(
+                errorMessage = null,
+                successMessage = null,
+                loadingProvider = null,
+                isLoading = false
+            )
+        }
     }
 
     private fun runAuthAction(action: suspend () -> Result<User>) {
@@ -207,7 +214,14 @@ class AuthViewModel(
     }
 
     private fun showError(message: String) {
-        _uiState.update { it.copy(isLoading = false, loadingProvider = null, errorMessage = message, successMessage = null) }
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                loadingProvider = null,
+                errorMessage = message,
+                successMessage = null
+            )
+        }
     }
 }
 

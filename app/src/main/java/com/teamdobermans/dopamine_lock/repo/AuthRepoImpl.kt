@@ -1,5 +1,6 @@
 package com.teamdobermans.dopamine_lock.repo
 
+import android.app.Activity
 import android.util.Patterns
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
@@ -10,6 +11,7 @@ import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.auth.OAuthProvider
 import com.google.firebase.database.DatabaseReference
 import com.teamdobermans.dopamine_lock.repo.AuthRepository
 import com.teamdobermans.dopamine_lock.model.User
@@ -72,24 +74,50 @@ class AuthRepositoryImpl(
         val credential = GoogleAuthProvider.getCredential(idToken, null)
         val authResult = auth.signInWithCredential(credential).await()
         val firebaseUser = authResult.user ?: throw AuthException("Unable to sign in with Google.")
-        val existingUser = fetchUserProfileOrNull(firebaseUser.uid)
+        ensureUserProfile(firebaseUser)
+    }
 
-        existingUser ?: createGoogleUserProfile(firebaseUser)
+    override suspend fun signInWithGitHub(activity: Activity): Result<User> = runCatchingAuth {
+        val provider = OAuthProvider.newBuilder(GITHUB_PROVIDER_ID).apply {
+            scopes = listOf("read:user", "user:email")
+        }.build()
+
+        val pendingResult = auth.pendingAuthResult
+        val authResult = if (pendingResult != null) {
+            pendingResult.await()
+        } else {
+            auth.startActivityForSignInWithProvider(activity, provider).await()
+        }
+
+        val firebaseUser = authResult.user ?: throw AuthException("Unable to sign in with GitHub.")
+        ensureUserProfile(firebaseUser)
     }
 
     override fun getCurrentFirebaseUser(): FirebaseUser? = auth.currentUser
 
     override suspend fun getCurrentUserProfile(): Result<User> = runCatchingAuth {
-        val uid = auth.currentUser?.uid ?: throw AuthException("You are not signed in.")
-        fetchUserProfile(uid)
+        val firebaseUser = auth.currentUser ?: throw AuthException("You are not signed in.")
+        ensureUserProfile(firebaseUser)
     }
 
-    private suspend fun createGoogleUserProfile(firebaseUser: FirebaseUser): User {
+    private suspend fun ensureUserProfile(firebaseUser: FirebaseUser): User {
+        val existingUser = fetchUserProfileOrNull(firebaseUser.uid)
         val now = System.currentTimeMillis()
-        val user = User(
+        val resolvedName = firebaseUser.displayName?.takeIf { it.isNotBlank() }
+            ?: existingUser?.name?.takeIf { it.isNotBlank() }
+            ?: "Focus Warrior"
+        val resolvedEmail = firebaseUser.email?.takeIf { it.isNotBlank() }
+            ?: existingUser?.email.orEmpty()
+
+        val user = existingUser?.copy(
             uid = firebaseUser.uid,
-            name = firebaseUser.displayName?.takeIf { it.isNotBlank() } ?: "Focus Warrior",
-            email = firebaseUser.email.orEmpty(),
+            name = resolvedName,
+            email = resolvedEmail,
+            updatedAt = now
+        ) ?: User(
+            uid = firebaseUser.uid,
+            name = resolvedName,
+            email = resolvedEmail,
             disciplineScore = 0,
             currentStreak = 0,
             bestStreak = 0,
@@ -145,6 +173,9 @@ class AuthRepositoryImpl(
             is FirebaseAuthInvalidCredentialsException -> "Email or password is incorrect."
             is FirebaseAuthException -> when (exception.errorCode) {
                 "ERROR_INVALID_EMAIL" -> "Enter a valid email address."
+                "ERROR_ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL" -> "An account already exists with this email using another sign-in method."
+                "ERROR_CREDENTIAL_ALREADY_IN_USE" -> "This sign-in credential is already linked to another account."
+                "ERROR_OPERATION_NOT_ALLOWED" -> "This sign-in method is not enabled in Firebase."
                 "ERROR_WRONG_PASSWORD" -> "Email or password is incorrect."
                 "ERROR_USER_NOT_FOUND" -> "No account found for this email."
                 "ERROR_EMAIL_ALREADY_IN_USE" -> "An account with this email already exists."
@@ -152,6 +183,7 @@ class AuthRepositoryImpl(
                 "ERROR_NETWORK_REQUEST_FAILED" -> "Network error. Check your connection and try again."
                 else -> "Authentication failed. Please try again."
             }
+
             else -> "Something went wrong. Please try again."
         }
     }
@@ -160,5 +192,6 @@ class AuthRepositoryImpl(
 
     private companion object {
         const val USERS_PATH = "users"
+        const val GITHUB_PROVIDER_ID = "github.com"
     }
 }
