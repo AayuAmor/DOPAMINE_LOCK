@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Card
@@ -29,14 +30,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -61,7 +57,15 @@ import com.teamdobermans.dopamine_lock.ui.theme.DopamineGrey
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineSurface
 import com.teamdobermans.dopamine_lock.ui.theme.DopamineWhite
 
-private data class RecentSession(val sessionId: String, val title: String, val duration: String, val time: String, val completed: Boolean)
+private data class RecentSession(
+    val sessionId: String,
+    val title: String,
+    val duration: String,
+    val time: String,
+    val completed: Boolean,
+    val abandoned: Boolean,
+    val isMission: Boolean
+)
 
 @Composable
 fun DashboardScreen(
@@ -83,18 +87,17 @@ fun DashboardScreen(
     onSeeAllSessions: () -> Unit = { onNavigate(Screen.Analytics.route) },
     onOpenStreakCalendar: () -> Unit = { onNavigate(Screen.Analytics.route) },
     onOpenGoalTracking: () -> Unit = { onNavigate(Screen.Analytics.route) },
+    onOpenAnalytics: () -> Unit = { onNavigate(Screen.Analytics.route) },
+    onOpenSessionHistory: () -> Unit = { onNavigate(Screen.SessionHistory.route) },
+    onOpenSettings: () -> Unit = { onNavigate(Screen.Settings.route) },
     onSessionClick: (sessionId: String) -> Unit = {}
 ) {
-    val snackbarHostState = remember { SnackbarHostState() }
-    val coroutineScope = rememberCoroutineScope()
-
     val todayGoal = dailyGoals.firstOrNull { !it.completed } ?: dailyGoals.firstOrNull()
     val todayGoalCurrent = todayGoal?.currentProgress?.toFloat() ?: todayFocusHours.toFloat()
     val todayGoalTarget = todayGoal?.targetValue?.toFloat()?.coerceAtLeast(1f) ?: 6f
 
     Scaffold(
         containerColor = Color.Black,
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         bottomBar = {
             BottomNavigationBar(
                 currentRoute = currentRoute,
@@ -110,7 +113,7 @@ fun DashboardScreen(
                 start = 20.dp,
                 end = 20.dp,
                 top = innerPadding.calculateTopPadding(),
-                bottom = innerPadding.calculateBottomPadding() + 16.dp
+                bottom = innerPadding.calculateBottomPadding() + 32.dp
             ),
             verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
@@ -118,11 +121,7 @@ fun DashboardScreen(
                 Spacer(modifier = Modifier.height(24.dp))
                 DashboardHeader(
                     userName = user?.name?.takeIf { it.isNotBlank() } ?: "Focus Warrior",
-                    onNotificationsClick = {
-                        coroutineScope.launch {
-                            snackbarHostState.showSnackbar("Notifications — coming soon")
-                        }
-                    }
+                    onNotificationsClick = onOpenSettings
                 )
                 Spacer(modifier = Modifier.height(28.dp))
             }
@@ -138,12 +137,14 @@ fun DashboardScreen(
                         value = formatFocusHours(todayFocusHours),
                         label = "Focus Hrs",
                         unit = "h",
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        onClick = onOpenAnalytics
                     )
                     DashboardStatCard(
                         value = successRate.toString(),
                         label = "Success %",
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        onClick = onOpenSessionHistory
                     )
                     DashboardStatCard(
                         value = (user?.currentStreak ?: 0).toString(),
@@ -249,7 +250,9 @@ private fun FocusSession.toRecentSession(): RecentSession {
         title = missionName.ifBlank { missionType.ifBlank { "Focus Session" } },
         duration = "$minutes min",
         time = timeLabel,
-        completed = completed
+        completed = completed,
+        abandoned = abandoned,
+        isMission = missionType.isNotBlank() && !missionType.equals("Focus", ignoreCase = true)
     )
 }
 
@@ -357,21 +360,49 @@ private fun SessionListItem(session: RecentSession, onClick: () -> Unit = {}) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = if (session.completed) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
+                imageVector = when {
+                    session.completed -> Icons.Filled.CheckCircle
+                    session.abandoned -> Icons.Filled.Cancel
+                    else -> Icons.Filled.RadioButtonUnchecked
+                },
                 contentDescription = null,
-                tint = if (session.completed) DopamineWhite else DopamineGrey,
+                tint = when {
+                    session.completed -> DopamineWhite
+                    session.abandoned -> DopamineGrey.copy(alpha = 0.6f)
+                    else -> DopamineGrey
+                },
                 modifier = Modifier.size(20.dp)
             )
 
             Spacer(modifier = Modifier.width(14.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = session.title,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (session.completed) DopamineWhite else DopamineGrey,
-                    fontWeight = FontWeight.Medium
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = session.title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (session.completed) DopamineWhite else DopamineGrey,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                color = if (session.isMission) DopamineSurface else DopamineCard,
+                                shape = RoundedCornerShape(4.dp)
+                            )
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = if (session.isMission) "MISSION" else "FOCUS",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = DopamineGrey,
+                            fontSize = 8.sp,
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = session.time,

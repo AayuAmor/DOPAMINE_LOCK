@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -35,6 +36,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -79,7 +81,8 @@ fun SettingsScreen(
     onNavigate: (String) -> Unit,
     onNavigateToBlockedApps: () -> Unit = {},
     onChangePassword: () -> Unit = {},
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    appVersion: String = "1.0"
 ) {
     val enforcementSettings = enforcementUiState.settings
     val permissionStatus = enforcementUiState.permissionStatus
@@ -90,8 +93,19 @@ fun SettingsScreen(
             notificationPreferences.milestoneNotificationsEnabled
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
-    val showComingSoon: (String) -> Unit = { msg ->
+    var showLogoutDialog by remember { mutableStateOf(false) }
+    val showFeatureUnavailable: (String) -> Unit = { msg ->
         coroutineScope.launch { snackbarHostState.showSnackbar(msg) }
+    }
+
+    if (showLogoutDialog) {
+        LogoutConfirmationDialog(
+            onDismiss = { showLogoutDialog = false },
+            onConfirm = {
+                showLogoutDialog = false
+                onLogout()
+            }
+        )
     }
 
     Scaffold(
@@ -131,7 +145,7 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(32.dp))
             }
 
-            item { ProfileCard(user = user, onClick = { showComingSoon("Edit Profile — coming soon") }) }
+            item { ProfileCard(user = user, onClick = { showFeatureUnavailable("Profile editing is not available yet.") }) }
 
             item {
                 Spacer(modifier = Modifier.height(28.dp))
@@ -141,7 +155,7 @@ fun SettingsScreen(
                     SettingsNavigationRow(
                         icon = Icons.Filled.Person,
                         label = "Edit Profile",
-                        onClick = { showComingSoon("Edit Profile — coming soon") }
+                        onClick = { showFeatureUnavailable("Profile editing is not available yet.") }
                     )
                     SettingsDivider()
                     SettingsNavigationRow(
@@ -153,7 +167,7 @@ fun SettingsScreen(
                     SettingsNavigationRow(
                         icon = Icons.Filled.Lock,
                         label = "Privacy & Security",
-                        onClick = { showComingSoon("Privacy & Security — coming soon") }
+                        onClick = { showFeatureUnavailable("Privacy settings are not available yet.") }
                     )
                 }
             }
@@ -338,7 +352,7 @@ fun SettingsScreen(
                         icon = Icons.Filled.Palette,
                         label = "Theme",
                         trailing = "Dark",
-                        onClick = { showComingSoon("Dark mode only — more themes coming soon") }
+                        onClick = { showFeatureUnavailable("Dopamine Lock uses a fixed dark theme.") }
                     )
                 }
             }
@@ -347,12 +361,12 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(32.dp))
                 DopamineButton(
                     text = "Log Out",
-                    onClick = onLogout,
+                    onClick = { showLogoutDialog = true },
                     variant = ButtonVariant.Danger
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "DOPAMINE LOCK v1.0.0",
+                    text = "DOPAMINE LOCK v$appVersion",
                     style = MaterialTheme.typography.labelSmall,
                     color = DopamineGrey.copy(alpha = 0.5f),
                     modifier = Modifier.fillMaxWidth(),
@@ -362,6 +376,43 @@ fun SettingsScreen(
             }
         }
     }
+}
+
+@Composable
+private fun LogoutConfirmationDialog(
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = DopamineCard,
+        titleContentColor = DopamineWhite,
+        textContentColor = DopamineGrey,
+        title = {
+            Text(
+                text = "Log Out?",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Text(
+                text = "You will need to sign in again to access your missions, goals, and progress.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = DopamineGrey
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text("Log Out", color = DopamineError, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = DopamineWhite, fontWeight = FontWeight.Bold)
+            }
+        }
+    )
 }
 
 @Composable

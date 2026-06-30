@@ -7,6 +7,7 @@ import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import com.teamdobermans.dopamine_lock.MainActivity
+import com.teamdobermans.dopamine_lock.BuildConfig
 import com.teamdobermans.dopamine_lock.repo.EnforcementRepositoryImpl
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -52,11 +53,11 @@ class DopamineAccessibilityService : AccessibilityService() {
         fun enforcePackage(context: Context, packageName: String) {
             val appContext = context.applicationContext
             if (shouldIgnorePackage(appContext, packageName)) {
-                Log.d(TAG, "Ignoring protected/self package: $packageName")
+                debugLog { "Ignoring protected/self package: $packageName" }
                 return
             }
             if (isDuplicateBlock(packageName)) {
-                Log.d(TAG, "Ignoring duplicate blocked-package event: $packageName")
+                debugLog { "Ignoring duplicate blocked-package event: $packageName" }
                 return
             }
 
@@ -65,18 +66,17 @@ class DopamineAccessibilityService : AccessibilityService() {
                 val settings = repository.observeSettings().first()
                 val state = repository.observeEnforcementState().first()
                 if (!state.active || !settings.blockingEnabled) {
-                    Log.d(
-                        TAG,
+                    debugLog {
                         "No active blocking for package=$packageName active=${state.active} enabled=${settings.blockingEnabled}"
-                    )
+                    }
                     return@launch
                 }
                 if (packageName !in state.blockedApps) {
-                    Log.d(TAG, "Package not in current blocked list: $packageName")
+                    debugLog { "Package not in current blocked list: $packageName" }
                     return@launch
                 }
 
-                Log.i(TAG, "Blocking package=$packageName missionId=${state.missionId}")
+                debugLog { "Blocking package=$packageName missionId=${state.missionId}" }
                 lastBlockedPackage = packageName
                 lastBlockedAt = SystemClock.elapsedRealtime()
                 repository.recordBlockedAttempt(packageName)
@@ -103,8 +103,14 @@ class DopamineAccessibilityService : AccessibilityService() {
                 putExtra(EXTRA_BLOCKED_PACKAGE, packageName)
                 putExtra(MissionEnforcementService.EXTRA_ENFORCEMENT_DESTINATION, "blocked_app_overlay")
             }
-            Log.i(TAG, "Launching blocked overlay for package=$packageName")
+            debugLog { "Launching blocked overlay for package=$packageName" }
             context.startActivity(intent)
+        }
+
+        private inline fun debugLog(message: () -> String) {
+            if (BuildConfig.DEBUG) {
+                Log.d(TAG, message())
+            }
         }
 
         private const val TAG = "DopamineBlocking"

@@ -18,13 +18,13 @@ import com.teamdobermans.dopamine_lock.R
 import kotlinx.coroutines.delay
 
 @Composable
-fun SplashScreen(onNavigateToOnboarding: () -> Unit) {
+fun SplashScreen(onSplashFinished: () -> Unit) {
     val alpha = remember { Animatable(0f) }
 
     LaunchedEffect(Unit) {
         alpha.animateTo(targetValue = 1f, animationSpec = tween(durationMillis = 1200))
         delay(1000L)
-        onNavigateToOnboarding()
+        onSplashFinished()
     }
 
     Box(

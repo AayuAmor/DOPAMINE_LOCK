@@ -59,8 +59,10 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.teamdobermans.dopamine_lock.model.FocusPreferences
 import com.teamdobermans.dopamine_lock.model.FocusSession
 import com.teamdobermans.dopamine_lock.model.Mission
+import com.teamdobermans.dopamine_lock.model.PomodoroPresetType
 import com.teamdobermans.dopamine_lock.navigation.Screen
 import com.teamdobermans.dopamine_lock.ui.components.BottomNavigationBar
 import com.teamdobermans.dopamine_lock.ui.components.ButtonVariant
@@ -77,22 +79,29 @@ import kotlinx.coroutines.launch
 
 private enum class TimerState { Idle, Running, Paused }
 
-private enum class PomodoroPreset(
+private enum class LocalPhase { None, ShortBreak, LongBreak }
+
+private data class PresetOption(
+    val type: PomodoroPresetType,
     val label: String,
     val focusMinutes: Int,
     val shortBreakMinutes: Int,
     val longBreakMinutes: Int
-) {
-    Standard("25 / 5", 25, 5, 15),
-    DeepWork("50 / 10", 50, 10, 20),
-    Ultradian("90 / 20", 90, 20, 30)
-}
+)
+
+private val presetOptions = listOf(
+    PresetOption(PomodoroPresetType.STANDARD, "25 / 5", 25, 5, 15),
+    PresetOption(PomodoroPresetType.DEEP_WORK, "50 / 10", 50, 10, 20),
+    PresetOption(PomodoroPresetType.ULTRADIAN, "90 / 20", 90, 20, 30)
+)
 
 @Composable
 fun FocusTimerScreen(
     currentRoute: String = Screen.Focus.route,
     activeSession: FocusSession?,
     activeMission: Mission? = null,
+    focusPreferences: FocusPreferences = FocusPreferences(),
+    onPreferencesChange: (FocusPreferences) -> Unit = {},
     onNavigate: (String) -> Unit = {},
     onNavigateBack: () -> Unit,
     onNavigateToMission: () -> Unit,
@@ -102,12 +111,148 @@ fun FocusTimerScreen(
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
-    var selectedPreset by remember { mutableStateOf(PomodoroPreset.Standard) }
-    var customFocusMinutes by remember { mutableStateOf("25") }
-    var customShortBreakMinutes by remember { mutableStateOf("5") }
-    var customLongBreakMinutes by remember { mutableStateOf("15") }
-    var autoStartBreak by remember { mutableStateOf(false) }
-    var autoStartNextSession by remember { mutableStateOf(false) }
+    var localPhase by remember { mutableStateOf(LocalPhase.None) }
+    var completedPomodoroCount by remember { mutableIntStateOf(0) }
+    var breakRemainingSeconds by remember { mutableIntStateOf(0) }
+    var breakTimerState by remember { mutableStateOf(TimerState.Idle) }
+
+    val customFocusMinutes = focusPreferences.focusMinutes.toString()
+    val customShortBreakMinutes = focusPreferences.shortBreakMinutes.toString()
+    val customLongBreakMinutes = focusPreferences.longBreakMinutes.toString()
+    val autoStartBreak = focusPreferences.autoStartBreak
+    val autoStartNextSession = focusPreferences.autoStartNextSession
+
+    fun updatePreferences(transform: (FocusPreferences) -> FocusPreferences) {
+        onPreferencesChange(transform(focusPreferences))
+    }
+
+    if (activeSession == null && localPhase != LocalPhase.None) {
+        LaunchedEffect(breakTimerState, localPhase) {
+            if (breakTimerState == TimerState.Running && breakRemainingSeconds > 0) {
+                while (breakRemainingSeconds > 0 && breakTimerState == TimerState.Running) {
+                    delay(1000L)
+                    if (breakTimerState == TimerState.Running) breakRemainingSeconds--
+                }
+                if (breakRemainingSeconds == 0) {
+                    breakTimerState = TimerState.Idle
+                    localPhase = LocalPhase.None
+                    if (autoStartNextSession) {
+                        onStartFocusSession(focusPreferences.focusMinutes)
+                    }
+                }
+            }
+        }
+
+        val breakTotalSeconds = when (localPhase) {
+            LocalPhase.LongBreak -> focusPreferences.longBreakMinutes * 60
+            else -> focusPreferences.shortBreakMinutes * 60
+        }
+        val breakProgress = if (breakTotalSeconds > 0) {
+            breakRemainingSeconds.toFloat() / breakTotalSeconds.toFloat()
+        } else 0f
+        val breakMinutes = breakRemainingSeconds / 60
+        val breakSeconds = breakRemainingSeconds % 60
+        val breakLabel = if (localPhase == LocalPhase.LongBreak) "LONG BREAK" else "SHORT BREAK"
+
+        Scaffold(
+            containerColor = Color.Black,
+            bottomBar = { BottomNavigationBar(currentRoute = currentRoute, onNavigate = onNavigate) }
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black)
+                    .padding(horizontal = 24.dp)
+                    .padding(
+                        top = innerPadding.calculateTopPadding() + 32.dp,
+                        bottom = innerPadding.calculateBottomPadding() + 24.dp
+                    ),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = breakLabel,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = DopamineGrey,
+                    letterSpacing = 3.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Take a breather",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = DopamineWhite,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                CircularTimerDisplay(
+                    progress = breakProgress,
+                    minutes = breakMinutes,
+                    seconds = breakSeconds,
+                    timerState = breakTimerState
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    when (breakTimerState) {
+                        TimerState.Idle -> {
+                            DopamineButton(
+                                text = "Start Break",
+                                onClick = { breakTimerState = TimerState.Running },
+                                variant = ButtonVariant.Primary,
+                                leadingIcon = Icons.Filled.PlayArrow,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        TimerState.Running -> {
+                            DopamineButton(
+                                text = "Pause",
+                                onClick = { breakTimerState = TimerState.Paused },
+                                variant = ButtonVariant.Secondary,
+                                leadingIcon = Icons.Filled.Pause,
+                                modifier = Modifier.weight(1f)
+                            )
+                            DopamineButton(
+                                text = "Skip",
+                                onClick = {
+                                    breakTimerState = TimerState.Idle
+                                    localPhase = LocalPhase.None
+                                    if (autoStartNextSession) {
+                                        onStartFocusSession(focusPreferences.focusMinutes)
+                                    }
+                                },
+                                variant = ButtonVariant.Secondary,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        TimerState.Paused -> {
+                            DopamineButton(
+                                text = "Resume",
+                                onClick = { breakTimerState = TimerState.Running },
+                                variant = ButtonVariant.Primary,
+                                leadingIcon = Icons.Filled.PlayArrow,
+                                modifier = Modifier.weight(1f)
+                            )
+                            DopamineButton(
+                                text = "Skip",
+                                onClick = {
+                                    breakTimerState = TimerState.Idle
+                                    localPhase = LocalPhase.None
+                                    if (autoStartNextSession) {
+                                        onStartFocusSession(focusPreferences.focusMinutes)
+                                    }
+                                },
+                                variant = ButtonVariant.Secondary,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        return
+    }
 
     if (activeSession == null) {
         Scaffold(
@@ -149,15 +294,19 @@ fun FocusTimerScreen(
                 )
                 Spacer(modifier = Modifier.height(24.dp))
 
-                PomodoroPreset.values().forEach { preset ->
+                presetOptions.forEach { preset ->
                     PresetRow(
                         preset = preset,
-                        selected = selectedPreset == preset,
+                        selected = focusPreferences.presetType == preset.type,
                         onClick = {
-                            selectedPreset = preset
-                            customFocusMinutes = preset.focusMinutes.toString()
-                            customShortBreakMinutes = preset.shortBreakMinutes.toString()
-                            customLongBreakMinutes = preset.longBreakMinutes.toString()
+                            updatePreferences {
+                                it.copy(
+                                    presetType = preset.type,
+                                    focusMinutes = preset.focusMinutes,
+                                    shortBreakMinutes = preset.shortBreakMinutes,
+                                    longBreakMinutes = preset.longBreakMinutes
+                                )
+                            }
                         }
                     )
                     Spacer(modifier = Modifier.height(10.dp))
@@ -167,7 +316,10 @@ fun FocusTimerScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     DopamineTextField(
                         value = customFocusMinutes,
-                        onValueChange = { customFocusMinutes = it.filter(Char::isDigit).take(3) },
+                        onValueChange = { value ->
+                            val minutes = value.filter(Char::isDigit).take(3).toIntOrNull()?.coerceIn(1, 180) ?: return@DopamineTextField
+                            updatePreferences { it.copy(presetType = PomodoroPresetType.CUSTOM, focusMinutes = minutes) }
+                        },
                         label = "Focus",
                         placeholder = "25",
                         keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
@@ -175,7 +327,10 @@ fun FocusTimerScreen(
                     )
                     DopamineTextField(
                         value = customShortBreakMinutes,
-                        onValueChange = { customShortBreakMinutes = it.filter(Char::isDigit).take(2) },
+                        onValueChange = { value ->
+                            val minutes = value.filter(Char::isDigit).take(2).toIntOrNull()?.coerceIn(1, 60) ?: return@DopamineTextField
+                            updatePreferences { it.copy(presetType = PomodoroPresetType.CUSTOM, shortBreakMinutes = minutes) }
+                        },
                         label = "Short Break",
                         placeholder = "5",
                         keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
@@ -185,14 +340,21 @@ fun FocusTimerScreen(
                 Spacer(modifier = Modifier.height(10.dp))
                 DopamineTextField(
                     value = customLongBreakMinutes,
-                    onValueChange = { customLongBreakMinutes = it.filter(Char::isDigit).take(2) },
+                    onValueChange = { value ->
+                        val minutes = value.filter(Char::isDigit).take(2).toIntOrNull()?.coerceIn(1, 90) ?: return@DopamineTextField
+                        updatePreferences { it.copy(presetType = PomodoroPresetType.CUSTOM, longBreakMinutes = minutes) }
+                    },
                     label = "Long Break",
                     placeholder = "15",
                     keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
                 )
                 Spacer(modifier = Modifier.height(16.dp))
-                FocusToggleRow("Auto-start break", autoStartBreak) { autoStartBreak = it }
-                FocusToggleRow("Auto-start next session", autoStartNextSession) { autoStartNextSession = it }
+                FocusToggleRow("Auto-start break", autoStartBreak) {
+                    updatePreferences { prefs -> prefs.copy(autoStartBreak = it) }
+                }
+                FocusToggleRow("Auto-start next session", autoStartNextSession) {
+                    updatePreferences { prefs -> prefs.copy(autoStartNextSession = it) }
+                }
                 Spacer(modifier = Modifier.height(24.dp))
                 DopamineButton(
                     text = "START ${customFocusMinutes.ifBlank { "25" }} MIN FOCUS",
@@ -203,6 +365,13 @@ fun FocusTimerScreen(
                         if (focusMinutes == null || shortBreak == null || longBreak == null) {
                             coroutineScope.launch { snackbarHostState.showSnackbar("Enter valid focus and break durations.") }
                         } else {
+                            updatePreferences {
+                                it.copy(
+                                    focusMinutes = focusMinutes,
+                                    shortBreakMinutes = shortBreak,
+                                    longBreakMinutes = longBreak
+                                )
+                            }
                             onStartFocusSession(focusMinutes)
                         }
                     },
@@ -240,8 +409,19 @@ fun FocusTimerScreen(
             }
             if (remainingSeconds == 0) {
                 timerState = TimerState.Idle
-                activeSession.sessionId.takeIf { it.isNotBlank() }?.let {
-                    onCompleteSession(it, totalSeconds.toLong())
+                activeSession.sessionId.takeIf { it.isNotBlank() }?.let { sessionId ->
+                    onCompleteSession(sessionId, totalSeconds.toLong())
+                    if (activeMission == null && autoStartBreak) {
+                        completedPomodoroCount++
+                        val isLongBreak = completedPomodoroCount % 4 == 0
+                        localPhase = if (isLongBreak) LocalPhase.LongBreak else LocalPhase.ShortBreak
+                        breakRemainingSeconds = if (isLongBreak) {
+                            focusPreferences.longBreakMinutes * 60
+                        } else {
+                            focusPreferences.shortBreakMinutes * 60
+                        }
+                        breakTimerState = TimerState.Running
+                    }
                 }
             }
         }
@@ -254,6 +434,7 @@ fun FocusTimerScreen(
 
     if (showAbandonDialog) {
         AbandonConfirmationDialog(
+            isMission = activeMission != null,
             onStayFocused = { showAbandonDialog = false },
             onAbandon = {
                 showAbandonDialog = false
@@ -439,7 +620,7 @@ fun FocusTimerScreen(
 
 @Composable
 private fun PresetRow(
-    preset: PomodoroPreset,
+    preset: PresetOption,
     selected: Boolean,
     onClick: () -> Unit
 ) {
@@ -499,6 +680,7 @@ private fun FocusToggleRow(
 
 @Composable
 private fun AbandonConfirmationDialog(
+    isMission: Boolean,
     onStayFocused: () -> Unit,
     onAbandon: () -> Unit
 ) {
@@ -509,7 +691,7 @@ private fun AbandonConfirmationDialog(
         textContentColor = DopamineGrey,
         title = {
             Text(
-                text = "Abandon Mission?",
+                text = if (isMission) "Abandon Mission?" else "End Focus Session?",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
@@ -517,41 +699,51 @@ private fun AbandonConfirmationDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    text = "Leaving now will mark this mission as abandoned.",
+                    text = if (isMission) {
+                        "Leaving now will mark this mission as abandoned."
+                    } else {
+                        "Ending early will save this session as incomplete."
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = DopamineGrey
                 )
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(DopamineError.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
-                        .border(1.dp, DopamineError.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
-                        .padding(12.dp)
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            "−15 Discipline XP",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = DopamineError,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            "Streak may be affected",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = DopamineError.copy(alpha = 0.8f)
-                        )
-                        Text(
-                            "Session will be saved as failed",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = DopamineError.copy(alpha = 0.8f)
-                        )
+                if (isMission) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(DopamineError.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                            .border(1.dp, DopamineError.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                            .padding(12.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                "−15 Discipline XP",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = DopamineError,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                "Streak may be affected",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = DopamineError.copy(alpha = 0.8f)
+                            )
+                            Text(
+                                "Session will be saved as failed",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = DopamineError.copy(alpha = 0.8f)
+                            )
+                        }
                     }
                 }
             }
         },
         confirmButton = {
             TextButton(onClick = onAbandon) {
-                Text("Abandon Mission", color = DopamineError, fontWeight = FontWeight.Bold)
+                Text(
+                    if (isMission) "Abandon Mission" else "End Session",
+                    color = DopamineError,
+                    fontWeight = FontWeight.Bold
+                )
             }
         },
         dismissButton = {
