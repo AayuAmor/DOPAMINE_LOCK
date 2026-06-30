@@ -6,15 +6,14 @@ plugins {
 
 android {
     namespace = "com.teamdobermans.dopamine_lock"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+
+    // Corrected compileSdk syntax
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.teamdobermans.dopamine_lock"
         minSdk = 31
+        // Adjusted targetSdk to match compileSdk for better compatibility
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
@@ -53,6 +52,8 @@ kotlin {
 }
 
 dependencies {
+    // Verified fragment version for ActivityResult API support
+    implementation("androidx.fragment:fragment-ktx:1.3.0")
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
